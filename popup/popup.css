@@ -1,0 +1,149 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --c-bg:       #202124;
+  --c-surface:  #2d2e30;
+  --c-border:   #3c3f43;
+  --c-text:     #e8eaed;
+  --c-sub:      #9aa0a6;
+  --c-critical: #ea4335;
+  --c-serious:  #fa7b17;
+  --c-moderate: #fbbc04;
+  --c-minor:    #4285f4;
+  --c-pass:     #34a853;
+  --c-primary:  #8ab4f8;
+  --radius:     6px;
+}
+
+body {
+  width: 320px;
+  font: 13px/1.5 -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+/* ── Header ── */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface);
+}
+.logo { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.logo-icon { font-size: 18px; }
+.logo-text { font-size: 14px; color: var(--c-primary); }
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  border: none;
+  background: var(--c-primary);
+  color: #202124;
+  font: 600 12px/1 sans-serif;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.btn-primary:hover:not(:disabled) { opacity: .85; }
+.btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── States ── */
+.state { padding: 24px 16px; }
+.hidden { display: none !important; }
+
+.idle-icon { font-size: 40px; text-align: center; margin-bottom: 8px; opacity: .35; }
+.idle-text  { text-align: center; color: var(--c-sub); font-size: 12px; }
+
+/* Spinner */
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--c-border);
+  border-top-color: var(--c-primary);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  margin: 0 auto 10px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#state-loading p { text-align: center; color: var(--c-sub); font-size: 12px; }
+
+.error-icon { font-size: 32px; text-align: center; margin-bottom: 6px; color: var(--c-critical); }
+#error-msg  { text-align: center; color: var(--c-sub); font-size: 12px; }
+
+/* ── Score ring ── */
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--c-surface);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+}
+.score-ring-wrap { position: relative; width: 60px; height: 60px; flex-shrink: 0; }
+.score-ring { width: 60px; height: 60px; transform: rotate(-90deg); }
+.ring-bg       { fill: none; stroke: var(--c-border); stroke-width: 5; }
+.ring-progress { fill: none; stroke: var(--c-pass); stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset .5s, stroke .3s; }
+.score-inner {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+}
+#score-value { font-size: 16px; font-weight: 700; line-height: 1; }
+.grade { font-size: 10px; color: var(--c-sub); }
+
+/* breakdown */
+.score-breakdown { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.bd-row { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.bd-row.critical .dot { background: var(--c-critical); }
+.bd-row.serious  .dot { background: var(--c-serious);  }
+.bd-row.moderate .dot { background: var(--c-moderate); }
+.bd-row.minor    .dot { background: var(--c-minor);    }
+.bd-row .lbl { flex: 1; color: var(--c-sub); }
+.bd-row .cnt { font-weight: 600; }
+
+/* stats */
+.stats-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.stat-box {
+  flex: 1;
+  background: var(--c-surface);
+  border-radius: var(--radius);
+  padding: 10px 6px;
+  text-align: center;
+}
+.stat-num  { display: block; font-size: 20px; font-weight: 700; color: var(--c-critical); }
+.stat-num.pass { color: var(--c-pass); }
+.stat-num.warn { color: var(--c-moderate); }
+.stat-lbl  { font-size: 10px; color: var(--c-sub); text-transform: uppercase; letter-spacing: .5px; }
+
+.url-row, .time-row {
+  font-size: 10px;
+  color: var(--c-sub);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 0;
+}
+
+.devtools-hint {
+  display: block;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--c-surface);
+  border-radius: var(--radius);
+  font-size: 11px;
+  color: var(--c-primary);
+  text-align: center;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid var(--c-border);
+}
+.devtools-hint:hover { background: var(--c-border); }

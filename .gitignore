@@ -1,0 +1,30 @@
+# axe-core (must be downloaded manually — see axe/GET_AXE.md)
+axe/axe.min.js
+
+# Icons (generated from icons/generate.html)
+icons/icon16.png
+icons/icon48.png
+icons/icon128.png
+
+# Node (if used for tooling)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Build artifacts
+dist/
+build/
+*.zip
+*.crx

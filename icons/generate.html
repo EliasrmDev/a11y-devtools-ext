@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<!-- Open this file in a browser, then right-click each canvas and "Save Image As" -->
+<html><body style="background:#222;display:flex;gap:20px;padding:20px;flex-wrap:wrap">
+<script>
+function makeIcon(size) {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#1a73e8';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, size, size, size * 0.18);
+  ctx.fill();
+
+  // Wheelchair symbol
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${size * 0.62}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('♿', size / 2, size / 2 + size * 0.04);
+
+  const label = document.createElement('p');
+  label.textContent = `${size}×${size} — right-click → Save as icon${size}.png`;
+  label.style.cssText = 'color:#aaa;font:11px monospace;margin:4px 0 16px';
+
+  const wrap = document.createElement('div');
+  wrap.appendChild(c);
+  wrap.appendChild(label);
+  document.body.appendChild(wrap);
+}
+
+[16, 48, 128].forEach(makeIcon);
+</script>
+</body></html>

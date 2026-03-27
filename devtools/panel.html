@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>a11y Panel</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+
+<!-- ══════════ TOP BAR ══════════ -->
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="logo">♿ a11y</span>
+    <button id="btn-scan" class="btn btn-primary">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Run Scan
+    </button>
+    <button id="btn-export" class="btn" disabled>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Export JSON
+    </button>
+  </div>
+
+  <div class="topbar-center">
+    <div class="score-chip">
+      <span class="score-chip-label">Score</span>
+      <span id="score-display" class="score-chip-value">—</span>
+      <span id="grade-display" class="score-chip-grade"></span>
+    </div>
+    <div class="counters">
+      <span class="counter critical" id="nav-critical">
+        <span class="dot"></span><span id="c-critical">0</span> Critical
+      </span>
+      <span class="counter serious" id="nav-serious">
+        <span class="dot"></span><span id="c-serious">0</span> Serious
+      </span>
+      <span class="counter moderate" id="nav-moderate">
+        <span class="dot"></span><span id="c-moderate">0</span> Moderate
+      </span>
+      <span class="counter minor" id="nav-minor">
+        <span class="dot"></span><span id="c-minor">0</span> Minor
+      </span>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <input id="search" type="search" placeholder="Search issues…" class="search-input">
+    <select id="filter-impact" class="select">
+      <option value="">All impacts</option>
+      <option value="critical">Critical</option>
+      <option value="serious">Serious</option>
+      <option value="moderate">Moderate</option>
+      <option value="minor">Minor</option>
+    </select>
+  </div>
+</div>
+
+<!-- ══════════ TAB BAR ══════════ -->
+<div class="tabs">
+  <button class="tab active" data-tab="violations">Violations <span class="tab-badge" id="tb-violations">0</span></button>
+  <button class="tab"        data-tab="passes">Passes       <span class="tab-badge pass" id="tb-passes">0</span></button>
+  <button class="tab"        data-tab="incomplete">Incomplete <span class="tab-badge warn" id="tb-incomplete">0</span></button>
+</div>
+
+<!-- ══════════ MAIN SPLIT ══════════ -->
+<div class="main-split">
+
+  <!-- Left: Issue list -->
+  <div class="sidebar" id="sidebar">
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">♿</div>
+      <p>Run a scan to see accessibility results</p>
+    </div>
+    <div id="issue-list"></div>
+  </div>
+
+  <!-- Resize handle -->
+  <div class="resize-handle" id="resize-handle"></div>
+
+  <!-- Right: Detail panel -->
+  <div class="detail-panel" id="detail-panel">
+    <div id="detail-placeholder" class="detail-placeholder">
+      <p>Select an issue from the list to see details</p>
+    </div>
+    <div id="detail-content" class="hidden"></div>
+  </div>
+
+</div>
+
+<!-- ══════════ STATUS BAR ══════════ -->
+<div class="statusbar" id="statusbar">Ready</div>
+
+<script src="../shared/messaging.js"></script>
+<script src="../core/scoring.js"></script>
+<script src="../core/formatter.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>
