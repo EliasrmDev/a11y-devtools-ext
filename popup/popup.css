@@ -133,17 +133,46 @@ header {
   padding: 2px 0;
 }
 
-.devtools-hint {
-  display: block;
+.devtools-guide {
   margin-top: 10px;
-  padding: 8px 12px;
+  padding: 12px;
   background: var(--c-surface);
   border-radius: var(--radius);
-  font-size: 11px;
-  color: var(--c-primary);
-  text-align: center;
-  cursor: pointer;
-  text-decoration: none;
   border: 1px solid var(--c-border);
 }
-.devtools-hint:hover { background: var(--c-border); }
+.devtools-guide h3 {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-primary);
+  margin-bottom: 8px;
+}
+.guide-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.os-section {
+  font-size: 11px;
+  color: var(--c-sub);
+}
+.os-section strong {
+  color: var(--c-text);
+  display: block;
+  margin-bottom: 3px;
+}
+.os-section code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 10px;
+  color: var(--c-primary);
+  display: inline-block;
+  margin: 0 2px;
+}
+.guide-note {
+  font-size: 10px;
+  color: var(--c-sub);
+  margin-top: 4px;
+  line-height: 1.4;
+}
