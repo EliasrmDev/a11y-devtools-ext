@@ -61,6 +61,9 @@ window.__a11yPickerLoaded = true;
         transition: opacity 0.1s ease;
         will-change: transform, width, height;
       }
+      .box[data-role="scope"]    { z-index: 1; }
+      .box[data-role="selected"] { z-index: 2; }
+      .box[data-role="hover"]    { z-index: 3; }
       .label {
         position: fixed;
         pointer-events: none;
@@ -73,8 +76,10 @@ window.__a11yPickerLoaded = true;
         text-overflow: ellipsis;
         box-shadow: 0 2px 8px rgba(0,0,0,0.35);
         will-change: transform;
-        z-index: 1;
       }
+      .label[data-label-for="scope"]    { z-index: 4; }
+      .label[data-label-for="selected"] { z-index: 5; }
+      .label[data-label-for="hover"]    { z-index: 6; }
       .scope-controls {
         position: fixed;
         pointer-events: auto;
@@ -221,7 +226,8 @@ window.__a11yPickerLoaded = true;
   // ─────────────────────────────────────────
   // Position overlay + label
   // ─────────────────────────────────────────
-  function positionBox(box, label, el, colors) {
+  // labelSlot: vertical offset multiplier (0, 1, 2) to stack labels without overlap
+  function positionBox(box, label, el, colors, labelSlot) {
     if (!el || !el.isConnected) {
       box.style.display = 'none';
       label.style.display = 'none';
@@ -243,15 +249,21 @@ window.__a11yPickerLoaded = true;
     box.style.border    = '2px solid ' + colors.border;
     box.style.background = colors.bg;
 
-    // Label
+    // Label — stack using slot offset so labels don't overlap
     label.style.display    = 'block';
     label.style.background = colors.label;
     label.style.color      = '#fff';
 
-    const labelH = 22;
-    const gap = 4;
-    const above = r.top - labelH - gap;
-    label.style.top  = (above >= 0 ? above : r.bottom + gap) + 'px';
+    const slot    = labelSlot || 0;
+    const labelH  = 22;
+    const gap     = 4;
+    const slotOff = slot * (labelH + 2);  // extra offset per slot
+    const above   = r.top - labelH - gap - slotOff;
+    if (above >= 0) {
+      label.style.top = above + 'px';
+    } else {
+      label.style.top = (r.bottom + gap + slotOff) + 'px';
+    }
     label.style.left = Math.max(0, Math.min(r.left, window.innerWidth - 460)) + 'px';
   }
 
@@ -283,37 +295,19 @@ window.__a11yPickerLoaded = true;
   function renderFrame() {
     if (!active) return;
 
-    // Hover
-    const hBox  = getBox('hover');
-    const hLbl  = getLabel('hover');
-    if (hoverEl && hoverEl !== selectedEl) {
-      positionBox(hBox, hLbl, hoverEl, COLORS.hover);
-      hLbl.textContent = elementLabel(hoverEl);
-    } else {
-      hBox.style.display  = 'none';
-      hLbl.style.display = 'none';
-    }
+    // Determine which layers are visible to calculate label slots
+    const hasScope    = scopeEl && scopeEl !== selectedEl;
+    const hasSelected = !!selectedEl;
+    const hasHover    = hoverEl && hoverEl !== selectedEl;
 
-    // Selected
-    const sBox  = getBox('selected');
-    const sLbl  = getLabel('selected');
-    if (selectedEl) {
-      positionBox(sBox, sLbl, selectedEl, COLORS.selected);
-      sLbl.textContent = elementLabel(selectedEl);
-    } else {
-      sBox.style.display  = 'none';
-      sLbl.style.display = 'none';
-    }
-
-    // Scope
+    // Scope (bottom layer, slot 0 = closest to element)
     const scBox = getBox('scope');
     const scLbl = getLabel('scope');
-    if (scopeEl && scopeEl !== selectedEl) {
-      positionBox(scBox, scLbl, scopeEl, COLORS.scope);
+    if (hasScope) {
+      positionBox(scBox, scLbl, scopeEl, COLORS.scope, 0);
       scLbl.textContent = '⚡ Scope: ' + elementLabel(scopeEl) + (scopeReason ? '  (' + scopeReason + ')' : '');
       positionControls(scopeEl);
     } else if (scopeEl && scopeEl === selectedEl) {
-      // Scope is same as selected — show scope label on the selected box
       scBox.style.display  = 'none';
       scLbl.style.display  = 'none';
       positionControls(selectedEl);
@@ -321,6 +315,30 @@ window.__a11yPickerLoaded = true;
       scBox.style.display  = 'none';
       scLbl.style.display  = 'none';
       getControls().style.display = 'none';
+    }
+
+    // Selected (middle layer)
+    const sBox  = getBox('selected');
+    const sLbl  = getLabel('selected');
+    const selSlot = hasScope ? -1 : 0;
+    if (hasSelected) {
+      positionBox(sBox, sLbl, selectedEl, COLORS.selected, selSlot);
+      sLbl.textContent = elementLabel(selectedEl);
+    } else {
+      sBox.style.display  = 'none';
+      sLbl.style.display = 'none';
+    }
+
+    // Hover (top layer — always visible above others)
+    const hBox  = getBox('hover');
+    const hLbl  = getLabel('hover');
+    const hoverSlot = (hasScope ? -1 : 0) + (hasSelected ? 1 : 0);
+    if (hasHover) {
+      positionBox(hBox, hLbl, hoverEl, COLORS.hover, hoverSlot);
+      hLbl.textContent = elementLabel(hoverEl);
+    } else {
+      hBox.style.display  = 'none';
+      hLbl.style.display = 'none';
     }
 
     rafId = requestAnimationFrame(renderFrame);
