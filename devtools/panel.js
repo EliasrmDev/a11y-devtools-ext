@@ -319,6 +319,7 @@ function updateModalControlsForFilterType() {
   const rulesSearchEl = $('rules-search');
   const backBtnEl = $('btn-back-to-presets');
   const customBtnEl = $('btn-enter-custom-mode');
+  const panelEl = document.querySelector('.scan-modal-panel');
   if (!titleEl || !controlsEl || !rulesListEl || !rulesSearchEl) return;
 
   if (!state.customMode) {
@@ -327,6 +328,7 @@ function updateModalControlsForFilterType() {
     rulesListEl.classList.add('hidden');
     if (backBtnEl) backBtnEl.classList.add('hidden');
     if (customBtnEl) customBtnEl.classList.remove('hidden');
+    if (panelEl) panelEl.classList.remove('custom-mode');
     return;
   }
 
@@ -336,6 +338,7 @@ function updateModalControlsForFilterType() {
   rulesListEl.classList.remove('hidden');
   if (backBtnEl) backBtnEl.classList.remove('hidden');
   if (customBtnEl) customBtnEl.classList.add('hidden');
+  if (panelEl) panelEl.classList.add('custom-mode');
   rulesSearchEl.placeholder = byTagMode ? 'Search tags...' : 'Search rules or tags...';
 }
 
@@ -736,10 +739,6 @@ function renderTopBar() {
   for (const imp of ['critical','serious','moderate','minor']) {
     $(`c-${imp}`).textContent = breakdown[imp] || 0;
   }
-
-  $('tb-violations').textContent = formattedResults.violations.length;
-  $('tb-passes').textContent     = formattedResults.passes.length;
-  $('tb-incomplete').textContent = formattedResults.incomplete.length;
 }
 
 // ─────────────────────────────────────────────

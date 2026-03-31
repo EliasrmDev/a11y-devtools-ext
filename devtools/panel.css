@@ -137,15 +137,10 @@ html, body {
   transition: color .15s, border-color .15s;
 }
 .tab:hover  { color: var(--c-text); }
-.tab.active { color: var(--c-text); border-bottom-color: var(--c-primary-l); }
-.tab-badge {
-  font-size: 10px; font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 10px;
-  background: var(--c-critical); color: #fff;
-}
-.tab-badge.pass { background: var(--c-pass); color: #1e1e1e; }
-.tab-badge.warn { background: var(--c-warn); color: #1e1e1e; }
+.tab.active { color: var(--c-text); }
+.tab.active[data-tab="violations"] { border-bottom-color: var(--c-critical); }
+.tab.active[data-tab="passes"]     { border-bottom-color: var(--c-pass); }
+.tab.active[data-tab="incomplete"] { border-bottom-color: var(--c-warn); }
 
 /* ── Main split ── */
 .main-split {
@@ -376,14 +371,16 @@ html, body {
 }
 
 .scan-modal-panel {
-  width: min(900px, 100%);
-  max-height: min(84vh, 720px);
   display: flex;
   flex-direction: column;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: 8px;
   overflow: hidden;
+}
+
+.scan-modal-panel.custom-mode {
+  max-height: min(84vh, 720px);
 }
 
 .btn-group {
