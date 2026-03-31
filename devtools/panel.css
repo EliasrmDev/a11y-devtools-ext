@@ -15,9 +15,12 @@
   --c-minor:    #4fc1ff;
   --c-pass:     #4ec9b0;
   --c-warn:     #dcdcaa;
+  --c-info:     #4fc1ff;
+  --c-success:  #4ec9b0;
+  --c-error:    #f44747;
   --c-primary:  #0e70c0;
   --c-primary-l:#569cd6;
-  --bar-h:      40px;
+  --bar-h:      50px;
   --tab-h:      34px;
   --status-h:   22px;
 }
@@ -34,15 +37,18 @@ html, body {
 .topbar {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 10px;
-  height: var(--bar-h);
+  min-height: var(--bar-h);
+  height: auto;
   padding: 0 10px;
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
   flex-shrink: 0;
 }
 .topbar-left  { display: flex; align-items: center; gap: 6px; }
-.topbar-center{ display: flex; align-items: center; gap: 10px; flex: 1; justify-content: center; }
+.topbar-center{ display: flex; align-items: center; gap: 10px; justify-content: center; }
 .topbar-right { display: flex; align-items: center; gap: 6px; }
 
 .logo { font-size: 13px; font-weight: 700; color: var(--c-primary-l); letter-spacing: .5px; margin-right: 4px; }
@@ -58,11 +64,17 @@ html, body {
   font-size: 11px;
   cursor: pointer;
   transition: background .1s;
+  min-width: max-content;
 }
 .btn:hover:not(:disabled) { background: var(--c-hover); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 .btn-primary { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
 .btn-primary:hover:not(:disabled) { background: #1177bb; }
+
+.btn-scan {
+  height: 25px;
+  min-width: max-content;
+}
 
 /* Score chip */
 .score-chip {
@@ -340,11 +352,16 @@ html, body {
   height: var(--status-h);
   display: flex; align-items: center;
   padding: 0 10px;
-  font-size: 11px; color: var(--c-sub);
+  font-size: 11px;
+  color: var(--c-info);
   background: var(--c-surface);
   border-top: 1px solid var(--c-border);
   flex-shrink: 0;
 }
+.statusbar.status-info { color: var(--c-info); }
+.statusbar.status-success { color: var(--c-success); }
+.statusbar.status-warning { color: var(--c-warn); }
+.statusbar.status-error { color: var(--c-error); }
 
 /* Loading overlay */
 .loading-overlay {

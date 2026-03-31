@@ -23,8 +23,20 @@ const state = {
 const $ = id => document.getElementById(id);
 const tabId = () => chrome.devtools.inspectedWindow.tabId;
 
-function setStatus(msg) {
-  $('statusbar').textContent = msg;
+function inferStatusTone(msg) {
+  const text = String(msg || '').toLowerCase();
+  if (text.includes('error') || text.includes('reloaded')) return 'error';
+  if (text.includes('complete') || text.includes('loaded')) return 'success';
+  return 'info';
+}
+
+function setStatus(msg, tone) {
+  const statusEl = $('statusbar');
+  if (!statusEl) return;
+  statusEl.textContent = msg;
+  const statusTone = tone || inferStatusTone(msg);
+  statusEl.classList.remove('status-info', 'status-success', 'status-warning', 'status-error');
+  statusEl.classList.add(`status-${statusTone}`);
 }
 
 function showLoading(show) {
