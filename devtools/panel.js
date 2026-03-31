@@ -10,9 +10,20 @@ const state = {
   filterText:      '',
   formattedResults: null,
   rawResults:      null,
+  availableRules:  [],
+  availableTags:   [],
+  customMode:      false,
+  selectedPresetIds: new Set(),
+  scanFilterType:  'rule',
+  selectedRuleIds: new Set(),
+  selectedTags:    new Set(),
+  customExtraTags: new Set(),
+  rulesSearchText: '',
+  rulesTagFilter:  '',
   selectedRuleIdx: -1,
   selectedNodeIdx: -1,
   expandedGroups:  new Set(),
+  collapsedTagGroups: new Set(),
   highlightedSelectors: new Set(),
   previousResults: null,   // for compare
 };
@@ -22,6 +33,85 @@ const state = {
 // ─────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const tabId = () => chrome.devtools.inspectedWindow.tabId;
+
+const RECOMMENDED_PRESETS = [
+  {
+    id: 'wcag-minimo-a',
+    name: 'WCAG Minimo A',
+    description: 'Cobertura base de cumplimiento A',
+    filterType: 'tag',
+    values: ['wcag2a', 'wcag21a'],
+  },
+  {
+    id: 'wcag-recomendado-aa',
+    name: 'WCAG Recomendado AA',
+    description: 'Combinacion recomendada para la mayoria de productos',
+    filterType: 'tag',
+    values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'],
+  },
+  {
+    id: 'cumplimiento-y-buenas-practicas',
+    name: 'Cumplimiento y Buenas Practicas',
+    description: 'AA mas best-practice para calidad extendida',
+    filterType: 'tag',
+    values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'],
+  },
+  {
+    id: 'teclado-y-foco',
+    name: 'Teclado y Foco',
+    description: 'Navegacion por teclado y estados de foco',
+    filterType: 'tag',
+    values: ['cat.keyboard'],
+  },
+  {
+    id: 'formularios-y-nombre-rol-valor',
+    name: 'Formularios y Etiquetas',
+    description: 'Errores de formularios, labels y nombre/rol/valor',
+    filterType: 'tag',
+    values: ['cat.forms', 'cat.name-role-value'],
+  },
+  {
+    id: 'color-y-contraste',
+    name: 'Color y Contraste',
+    description: 'Revision centrada en color, contraste y senales visuales',
+    filterType: 'tag',
+    values: ['cat.color', 'cat.sensory-and-visual-cues'],
+  },
+];
+
+const TAG_GROUPS = [
+  { id: 'wcag20',        label: 'WCAG 2.0',               match: t => /^wcag2a{1,3}$/.test(t) },
+  { id: 'wcag21',        label: 'WCAG 2.1',               match: t => /^wcag21a{1,2}$/.test(t) },
+  { id: 'wcag22',        label: 'WCAG 2.2',               match: t => /^wcag22a{1,2}$/.test(t) },
+  { id: 'wcag-sc',       label: 'WCAG Success Criteria',  match: t => /^wcag\d{3,}$/.test(t) },
+  { id: 'wcag-obsolete', label: 'WCAG Obsolete',          match: t => t.endsWith('-obsolete') },
+  { id: 'best-practice', label: 'Best Practices',         match: t => t === 'best-practice' },
+  { id: 'act',           label: 'ACT Rules',              match: t => /^ACT$/i.test(t) },
+  { id: 'section508',    label: 'Section 508',            match: t => t.startsWith('section508') },
+  { id: 'ttv5',          label: 'Trusted Tester v5',      match: t => /^TT/i.test(t) },
+  { id: 'en301549',      label: 'EN 301 549',             match: t => /^EN/i.test(t) },
+  { id: 'rgaa',          label: 'RGAA',                   match: t => /^RGAA/i.test(t) },
+  { id: 'experimental',  label: 'Experimental',           match: t => t === 'experimental' },
+  { id: 'cat',           label: 'Categories (Deque)',     match: t => t.startsWith('cat.') },
+  { id: 'other',         label: 'Other',                  match: () => true },
+];
+
+function classifyTag(tag) {
+  for (const group of TAG_GROUPS) {
+    if (group.match(tag)) return group;
+  }
+  return TAG_GROUPS[TAG_GROUPS.length - 1];
+}
+
+function groupTags(tags) {
+  const grouped = new Map();
+  tags.forEach(tag => {
+    const group = classifyTag(tag);
+    if (!grouped.has(group.id)) grouped.set(group.id, { label: group.label, tags: [] });
+    grouped.get(group.id).tags.push(tag);
+  });
+  return grouped;
+}
 
 function inferStatusTone(msg) {
   const text = String(msg || '').toLowerCase();
@@ -69,13 +159,26 @@ function impactBadge(impact) {
 // ─────────────────────────────────────────────
 // Scan
 // ─────────────────────────────────────────────
-function runScan() {
+function runScan(filterType, selectedValues) {
+  const mode = filterType === 'tag' ? 'tag' : 'rule';
+  const selected = Array.isArray(selectedValues) ? selectedValues : [];
+  if (!selected.length) {
+    setStatus(`Select at least one ${mode === 'tag' ? 'tag' : 'rule'} before scanning.`, 'warning');
+    return;
+  }
+
   showLoading(true);
   $('btn-scan').disabled = true;
   $('btn-export').disabled = true;
-  setStatus('Scanning…');
+  setStatus(`Scanning ${selected.length} ${mode}${selected.length !== 1 ? 's' : ''}...`);
 
-  safeSendMessage({ type: MSG.SCAN_REQUEST, tabId: tabId() }, (resp) => {
+  safeSendMessage({
+    type: MSG.SCAN_REQUEST,
+    tabId: tabId(),
+    filterType: mode,
+    selectedRuleIds: mode === 'rule' ? selected : [],
+    selectedTags: mode === 'tag' ? selected : [],
+  }, (resp) => {
     try {
       showLoading(false);
       $('btn-scan').disabled = false;
@@ -126,6 +229,449 @@ function loadCachedResults() {
       if (!e?.message?.includes('Extension context invalidated')) throw e;
     }
   });
+}
+
+function fetchAxeRules() {
+  return new Promise((resolve, reject) => {
+    safeSendMessage({ type: MSG.GET_AXE_RULES, tabId: tabId() }, (resp) => {
+      try {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!resp || resp.type === MSG.SCAN_ERROR) {
+          reject(new Error(resp?.error || 'Unable to fetch rules'));
+          return;
+        }
+        resolve({
+          rules: Array.isArray(resp.rules) ? resp.rules : [],
+          tags: Array.isArray(resp.tags) ? resp.tags : [],
+        });
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
+
+function filteredModalRules() {
+  const query = state.rulesSearchText.toLowerCase();
+  const filter = state.rulesTagFilter;
+  const isGroupFilter = filter.startsWith('group:');
+  const groupId = isGroupFilter ? filter.slice(6) : '';
+
+  return state.availableRules.filter(rule => {
+    if (filter) {
+      if (isGroupFilter) {
+        if (!rule.tags.some(t => classifyTag(t).id === groupId)) return false;
+      } else {
+        if (!rule.tags.includes(filter)) return false;
+      }
+    }
+    if (!query) return true;
+    return (
+      rule.id.toLowerCase().includes(query)
+      || rule.help.toLowerCase().includes(query)
+      || rule.tags.some(tag => tag.toLowerCase().includes(query))
+    );
+  });
+}
+
+function filteredModalTags() {
+  const query = state.rulesSearchText.toLowerCase();
+  const filter = state.rulesTagFilter;
+  const isGroupFilter = filter.startsWith('group:');
+  const groupId = isGroupFilter ? filter.slice(6) : '';
+
+  return state.availableTags.filter(tag => {
+    if (filter) {
+      if (isGroupFilter) {
+        if (classifyTag(tag).id !== groupId) return false;
+      } else {
+        if (tag !== filter) return false;
+      }
+    }
+    if (!query) return true;
+    return tag.toLowerCase().includes(query);
+  });
+}
+
+function getSelectedSet() {
+  if (!state.customMode) return state.selectedTags;
+  return state.scanFilterType === 'tag' ? state.selectedTags : state.selectedRuleIds;
+}
+
+function getVisibleItems() {
+  return state.scanFilterType === 'tag' ? filteredModalTags() : filteredModalRules();
+}
+
+function updateRuleSelectionCount() {
+  const selected = getSelectedSet().size;
+  const label = (!state.customMode || state.scanFilterType === 'tag') ? 'tag' : 'rule';
+  $('rules-count').textContent = `${selected} ${label}${selected !== 1 ? 's' : ''} selected`;
+  $('btn-scan-run-selected').disabled = selected === 0;
+}
+
+function updateModalControlsForFilterType() {
+  const titleEl = $('scan-modal-title');
+  const controlsEl = $('scan-modal-controls');
+  const rulesListEl = $('rules-list');
+  const rulesSearchEl = $('rules-search');
+  const backBtnEl = $('btn-back-to-presets');
+  const customBtnEl = $('btn-enter-custom-mode');
+  if (!titleEl || !controlsEl || !rulesListEl || !rulesSearchEl) return;
+
+  if (!state.customMode) {
+    titleEl.textContent = 'Select Presets To Scan';
+    controlsEl.classList.add('hidden');
+    rulesListEl.classList.add('hidden');
+    if (backBtnEl) backBtnEl.classList.add('hidden');
+    if (customBtnEl) customBtnEl.classList.remove('hidden');
+    return;
+  }
+
+  const byTagMode = state.scanFilterType === 'tag';
+  titleEl.textContent = byTagMode ? 'Custom: Select Tags To Scan' : 'Custom: Select Rules To Scan';
+  controlsEl.classList.remove('hidden');
+  rulesListEl.classList.remove('hidden');
+  if (backBtnEl) backBtnEl.classList.remove('hidden');
+  if (customBtnEl) customBtnEl.classList.add('hidden');
+  rulesSearchEl.placeholder = byTagMode ? 'Search tags...' : 'Search rules or tags...';
+}
+
+function renderPresetOptions() {
+  const presetList = $('scan-preset-list');
+  if (!presetList) return;
+
+  const html = RECOMMENDED_PRESETS.map(preset => {
+      const checked = state.selectedPresetIds.has(preset.id) ? 'checked' : '';
+      return `
+        <label class="preset-option">
+          <input type="checkbox" data-preset-id="${escHtml(preset.id)}" ${checked}>
+          <span class="preset-meta">
+            <span class="preset-name">${escHtml(preset.name)}</span>
+            <span class="preset-desc">${escHtml(preset.description)}</span>
+          </span>
+        </label>
+      `;
+    }).join('');
+
+  presetList.innerHTML = html;
+
+  presetList.querySelectorAll('input[data-preset-id]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.selectedPresetIds.add(cb.dataset.presetId);
+      else state.selectedPresetIds.delete(cb.dataset.presetId);
+
+      state.customMode = false;
+      applySelectedPresets();
+      updateModalControlsForFilterType();
+    });
+  });
+
+  $('preset-help').textContent = '';
+}
+
+function getPresetDerivedTags() {
+  const tags = new Set();
+  RECOMMENDED_PRESETS
+    .filter(p => state.selectedPresetIds.has(p.id))
+    .forEach(p => p.values.forEach(v => {
+      if (state.availableTags.includes(v)) tags.add(v);
+    }));
+  return tags;
+}
+
+function applySelectedPresets() {
+  const selectedPresets = RECOMMENDED_PRESETS.filter(item => state.selectedPresetIds.has(item.id));
+  const targetValues = new Set();
+
+  selectedPresets.forEach(preset => {
+    preset.values.forEach(value => {
+      if (state.availableTags.includes(value)) targetValues.add(value);
+    });
+  });
+
+  state.scanFilterType = 'tag';
+  $('scan-filter-type').value = state.scanFilterType;
+  state.selectedTags.clear();
+  targetValues.forEach(value => state.selectedTags.add(value));
+  state.customExtraTags.forEach(tag => state.selectedTags.add(tag));
+
+  const names = selectedPresets.map(preset => preset.name).join(' + ');
+  const extraCount = state.customExtraTags.size;
+  const extraLabel = extraCount > 0 ? ` + ${extraCount} custom tag${extraCount !== 1 ? 's' : ''}` : '';
+  $('preset-help').textContent = (names || 'Choose one or more presets') + extraLabel;
+  updateRuleSelectionCount();
+  renderRulesModal();
+
+  if (!selectedPresets.length && !extraCount) {
+    setStatus('Select at least one preset, or choose Custom.', 'warning');
+    return;
+  }
+
+  if (!targetValues.size && !extraCount) {
+    setStatus('Selected presets do not match tags available in this page.', 'warning');
+    return;
+  }
+
+  setStatus(`Preset combo applied (${selectedPresets.length})${extraLabel}`, 'success');
+}
+
+function enterCustomMode() {
+  state.customMode = true;
+  const presetsEl = $('scan-modal-presets');
+  const presetHelpEl = $('preset-help');
+  if (presetsEl) presetsEl.classList.add('hidden');
+  if (presetHelpEl) presetHelpEl.textContent = '';
+  updateModalControlsForFilterType();
+  updateRuleSelectionCount();
+  renderRulesModal();
+}
+
+function exitCustomModeToPresets() {
+  // Snapshot extra tags added manually beyond preset-derived ones
+  const presetTags = getPresetDerivedTags();
+  state.customExtraTags.clear();
+  state.selectedTags.forEach(tag => {
+    if (!presetTags.has(tag)) state.customExtraTags.add(tag);
+  });
+
+  state.customMode = false;
+  const presetsEl = $('scan-modal-presets');
+  if (presetsEl) presetsEl.classList.remove('hidden');
+  updateModalControlsForFilterType();
+  renderPresetOptions();
+  applySelectedPresets();
+}
+
+function renderRulesModal() {
+  const list = $('rules-list');
+  const selectedSet = getSelectedSet();
+  const items = getVisibleItems();
+
+  if (!items.length) {
+    list.innerHTML = `<div class="rules-empty">No ${state.scanFilterType === 'tag' ? 'tags' : 'rules'} match current filters.</div>`;
+    updateRuleSelectionCount();
+    return;
+  }
+
+  const html = state.scanFilterType === 'tag'
+    ? (() => {
+      const grouped = groupTags(items);
+      let out = '';
+      for (const [groupId, group] of grouped) {
+        // Singleton group: render as plain item, no header
+        if (group.tags.length === 1) {
+          const tag = group.tags[0];
+          const checked = selectedSet.has(tag) ? 'checked' : '';
+          out += `
+            <label class="rule-option">
+              <input type="checkbox" data-tag="${escHtml(tag)}" ${checked}>
+              <span class="rule-meta">
+                <span class="rule-id">${escHtml(tag)}</span>
+              </span>
+            </label>
+          `;
+          continue;
+        }
+        const collapsed = state.collapsedTagGroups.has(groupId);
+        const allSelected = group.tags.every(t => selectedSet.has(t));
+        const someSelected = !allSelected && group.tags.some(t => selectedSet.has(t));
+        const chevron = collapsed ? '▸' : '▾';
+        out += `<div class="tag-group-header" data-group-id="${escHtml(groupId)}">`;
+        out += `<span class="tag-group-toggle" data-group-id="${escHtml(groupId)}">${chevron}</span>`;
+        out += `<input type="checkbox" class="tag-group-cb" data-group-id="${escHtml(groupId)}" ${allSelected ? 'checked' : ''}${someSelected ? ' data-indeterminate' : ''}>`;
+        out += `<span class="tag-group-label">${escHtml(group.label)}</span>`;
+        out += `<span class="tag-group-count">${group.tags.filter(t => selectedSet.has(t)).length}/${group.tags.length}</span>`;
+        out += `</div>`;
+        if (!collapsed) {
+          out += group.tags.map(tag => {
+            const checked = selectedSet.has(tag) ? 'checked' : '';
+            return `
+              <label class="rule-option" data-parent-group="${escHtml(groupId)}">
+                <input type="checkbox" data-tag="${escHtml(tag)}" ${checked}>
+                <span class="rule-meta">
+                  <span class="rule-id">${escHtml(tag)}</span>
+                </span>
+              </label>
+            `;
+          }).join('');
+        }
+      }
+      return out;
+    })()
+    : items.map(rule => {
+      const checked = selectedSet.has(rule.id) ? 'checked' : '';
+      const tags = rule.tags.join(', ');
+      return `
+        <label class="rule-option">
+          <input type="checkbox" data-rule-id="${escHtml(rule.id)}" ${checked}>
+          <span class="rule-meta">
+            <span class="rule-id">${escHtml(rule.id)}</span>
+            <span class="rule-help">${escHtml(rule.help || rule.description || 'No description')}</span>
+            <span class="rule-tags" title="${escHtml(tags)}">${escHtml(tags)}</span>
+          </span>
+        </label>
+      `;
+    }).join('');
+
+  list.innerHTML = html;
+
+  // Set indeterminate state for group checkboxes
+  list.querySelectorAll('.tag-group-cb[data-indeterminate]').forEach(cb => {
+    cb.indeterminate = true;
+  });
+
+  // Accordion toggles
+  list.querySelectorAll('.tag-group-toggle').forEach(toggle => {
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const gid = toggle.dataset.groupId;
+      if (state.collapsedTagGroups.has(gid)) state.collapsedTagGroups.delete(gid);
+      else state.collapsedTagGroups.add(gid);
+      renderRulesModal();
+    });
+  });
+
+  // Group select/deselect checkboxes
+  list.querySelectorAll('.tag-group-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const gid = cb.dataset.groupId;
+      const grouped = groupTags(items);
+      const group = grouped.get(gid);
+      if (!group) return;
+      group.tags.forEach(tag => {
+        if (cb.checked) selectedSet.add(tag);
+        else selectedSet.delete(tag);
+      });
+      renderRulesModal();
+    });
+  });
+
+  // Click on group header label area toggles accordion
+  list.querySelectorAll('.tag-group-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tag-group-cb')) return;
+      const gid = header.dataset.groupId;
+      if (state.collapsedTagGroups.has(gid)) state.collapsedTagGroups.delete(gid);
+      else state.collapsedTagGroups.add(gid);
+      renderRulesModal();
+    });
+  });
+
+  // Individual tag/rule checkboxes
+  list.querySelectorAll('input[data-tag], input[data-rule-id]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const id = cb.dataset.ruleId || cb.dataset.tag;
+      if (!id) return;
+      if (cb.checked) selectedSet.add(id);
+      else selectedSet.delete(id);
+      updateRuleSelectionCount();
+      // Update parent group header state without full re-render
+      const label = cb.closest('[data-parent-group]');
+      if (label) {
+        const gid = label.dataset.parentGroup;
+        const headerCb = list.querySelector(`.tag-group-cb[data-group-id="${gid}"]`);
+        const countEl = list.querySelector(`.tag-group-header[data-group-id="${gid}"] .tag-group-count`);
+        if (headerCb) {
+          const grouped = groupTags(items);
+          const group = grouped.get(gid);
+          if (group) {
+            const allSel = group.tags.every(t => selectedSet.has(t));
+            const someSel = group.tags.some(t => selectedSet.has(t));
+            headerCb.checked = allSel;
+            headerCb.indeterminate = !allSel && someSel;
+            if (countEl) countEl.textContent = `${group.tags.filter(t => selectedSet.has(t)).length}/${group.tags.length}`;
+          }
+        }
+      }
+    });
+  });
+
+  updateRuleSelectionCount();
+}
+
+function setAllVisibleRules(selected) {
+  const selectedSet = getSelectedSet();
+  const items = getVisibleItems();
+  items.forEach(item => {
+    const value = state.scanFilterType === 'tag' ? item : item.id;
+    if (selected) selectedSet.add(value);
+    else selectedSet.delete(value);
+  });
+  renderRulesModal();
+}
+
+function openScanModal() {
+  const presetsEl = $('scan-modal-presets');
+  const scanModalEl = $('scan-modal');
+  if (!scanModalEl) return;
+
+  if (!state.customMode && presetsEl) {
+    presetsEl.classList.remove('hidden');
+  }
+  scanModalEl.classList.remove('hidden');
+  updateModalControlsForFilterType();
+  renderPresetOptions();
+  renderRulesModal();
+}
+
+function closeScanModal() {
+  const scanModalEl = $('scan-modal');
+  if (scanModalEl) scanModalEl.classList.add('hidden');
+}
+
+function openScanModalFlow() {
+  if (state.availableRules.length > 0) {
+    openScanModal();
+    return;
+  }
+
+  $('btn-scan').disabled = true;
+  setStatus('Loading axe rules...');
+  fetchAxeRules()
+    .then(({ rules, tags }) => {
+      state.availableRules = rules.sort((a, b) => a.id.localeCompare(b.id));
+      state.availableTags = tags;
+      state.customMode = false;
+      state.selectedPresetIds.clear();
+      state.scanFilterType = 'rule';
+      state.selectedRuleIds = new Set(state.availableRules.map(rule => rule.id));
+      state.selectedTags = new Set();
+      state.customExtraTags = new Set();
+
+      const tagFilter = $('rules-tag-filter');
+      const grouped = groupTags(state.availableTags);
+      let tagFilterHtml = '<option value="">All tags</option>';
+      for (const [groupId, group] of grouped) {
+        if (group.tags.length === 1) {
+          tagFilterHtml += `<option value="${escHtml(group.tags[0])}">${escHtml(group.tags[0])}</option>`;
+          continue;
+        }
+        tagFilterHtml += `<optgroup label="${escHtml(group.label)}">`;
+        tagFilterHtml += `<option value="group:${escHtml(groupId)}">★ All ${escHtml(group.label)}</option>`;
+        tagFilterHtml += group.tags.map(tag => `<option value="${escHtml(tag)}">${escHtml(tag)}</option>`).join('');
+        tagFilterHtml += '</optgroup>';
+      }
+      tagFilter.innerHTML = tagFilterHtml;
+      tagFilter.value = '';
+      state.rulesSearchText = '';
+      state.rulesTagFilter = '';
+      $('rules-search').value = '';
+      $('scan-filter-type').value = state.scanFilterType;
+      updateModalControlsForFilterType();
+      renderPresetOptions();
+
+      setStatus(`Loaded ${state.availableRules.length} axe rules`, 'success');
+      openScanModal();
+    })
+    .catch(err => {
+      setStatus('Error loading rules: ' + err.message, 'error');
+    })
+    .finally(() => {
+      $('btn-scan').disabled = false;
+    });
 }
 
 // ─────────────────────────────────────────────
@@ -448,8 +994,43 @@ window.addEventListener('beforeunload', () => {
   clearHighlights();
 });
 
-$('btn-scan').addEventListener('click', runScan);
+$('btn-scan').addEventListener('click', openScanModalFlow);
 $('btn-export').addEventListener('click', exportJSON);
+
+$('btn-scan-modal-close').addEventListener('click', closeScanModal);
+$('btn-scan-cancel').addEventListener('click', closeScanModal);
+$('btn-enter-custom-mode').addEventListener('click', enterCustomMode);
+$('btn-back-to-presets').addEventListener('click', exitCustomModeToPresets);
+$('btn-scan-run-selected').addEventListener('click', () => {
+  const selected = Array.from(getSelectedSet());
+  const mode = state.customMode ? state.scanFilterType : 'tag';
+  closeScanModal();
+  runScan(mode, selected);
+});
+
+$('scan-filter-type').addEventListener('change', e => {
+  if (!state.customMode) return;
+  state.scanFilterType = e.target.value === 'tag' ? 'tag' : 'rule';
+  updateModalControlsForFilterType();
+  renderRulesModal();
+});
+
+$('rules-search').addEventListener('input', e => {
+  state.rulesSearchText = e.target.value.trim();
+  renderRulesModal();
+});
+
+$('rules-tag-filter').addEventListener('change', e => {
+  state.rulesTagFilter = e.target.value;
+  renderRulesModal();
+});
+
+$('btn-rules-select-all').addEventListener('click', () => setAllVisibleRules(true));
+$('btn-rules-clear-all').addEventListener('click', () => setAllVisibleRules(false));
+
+$('scan-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'scan-modal') closeScanModal();
+});
 
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
@@ -534,6 +1115,13 @@ document.addEventListener('mouseup', () => {
 // Keyboard navigation
 // ─────────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  const scanModalEl = $('scan-modal');
+  if (scanModalEl && !scanModalEl.classList.contains('hidden') && e.key === 'Escape') {
+    e.preventDefault();
+    closeScanModal();
+    return;
+  }
+
   const rules = getActiveRules();
   if (!rules.length) return;
 

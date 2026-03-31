@@ -363,6 +363,248 @@ html, body {
 .statusbar.status-warning { color: var(--c-warn); }
 .statusbar.status-error { color: var(--c-error); }
 
+/* Scan rules modal */
+.scan-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(0,0,0,.62);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.scan-modal-panel {
+  width: min(900px, 100%);
+  max-height: min(84vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.scan-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.scan-modal-header h2 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.scan-modal-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border);
+  flex-wrap: wrap;
+}
+
+.scan-modal-controls #rules-search {
+  min-width: 280px;
+  flex: 1;
+}
+
+.scan-modal-presets {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.preset-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.preset-label {
+  color: var(--c-sub);
+  font-size: 11px;
+}
+
+.preset-help {
+  color: var(--c-sub);
+  font-size: 10px;
+  min-width: 180px;
+}
+
+.preset-list {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.preset-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-surface2);
+}
+
+.preset-option:hover {
+  border-color: var(--c-primary-l);
+}
+
+.preset-option input {
+  margin-top: 2px;
+}
+
+.preset-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preset-name {
+  font-size: 11px;
+  color: var(--c-text);
+}
+
+.preset-desc {
+  font-size: 10px;
+  color: var(--c-sub);
+}
+
+.scan-modal-summary {
+  padding: 8px 14px;
+  color: var(--c-sub);
+  font-size: 11px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.rules-list {
+  overflow: auto;
+  flex: 1;
+  min-height: 220px;
+}
+
+.tag-group-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--c-sub);
+  background: var(--c-surface2);
+  border-bottom: 1px solid var(--c-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.tag-group-header:hover {
+  background: var(--c-hover);
+}
+
+.tag-group-toggle {
+  font-size: 10px;
+  width: 12px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--c-sub);
+}
+
+.tag-group-cb {
+  margin: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.tag-group-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.tag-group-count {
+  font-size: 9px;
+  color: var(--c-sub);
+  font-weight: 400;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.rule-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.rule-option:hover {
+  background: var(--c-hover);
+}
+
+.rule-option input {
+  margin-top: 2px;
+}
+
+.rule-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rule-id {
+  font-size: 11px;
+  color: var(--c-primary-l);
+}
+
+.rule-help {
+  font-size: 11px;
+  color: var(--c-text);
+}
+
+.rule-tags {
+  font-size: 10px;
+  color: var(--c-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rules-empty {
+  padding: 20px 14px;
+  color: var(--c-sub);
+}
+
+.scan-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--c-border);
+}
+
 /* Loading overlay */
 .loading-overlay {
   position: fixed; inset: 0; z-index: 999;

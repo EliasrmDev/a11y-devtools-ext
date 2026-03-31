@@ -89,6 +89,52 @@
 <!-- ══════════ STATUS BAR ══════════ -->
 <div class="statusbar" id="statusbar">Ready</div>
 
+<!-- ══════════ SCAN RULES MODAL ══════════ -->
+<div id="scan-modal" class="scan-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
+  <div class="scan-modal-panel">
+    <div class="scan-modal-header">
+      <h2 id="scan-modal-title">Select Rules To Scan</h2>
+      <div class="btn-group">
+        <button id="btn-enter-custom-mode" class="btn" type="button">Custom Mode</button>
+        <button id="btn-back-to-presets" class="btn hidden" type="button">Back To Presets</button>
+        <button id="btn-scan-modal-close" class="btn" type="button" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div id="scan-modal-controls" class="scan-modal-controls">
+      <input id="rules-search" type="search" class="search-input" placeholder="Search rules or tags...">
+      <select id="scan-filter-type" class="select">
+        <option value="rule">Filter by rules</option>
+        <option value="tag">Filter by tags</option>
+      </select>
+      <select id="rules-tag-filter" class="select">
+        <option value="">All tags</option>
+      </select>
+      <button id="btn-rules-select-all" class="btn" type="button">Select All</button>
+      <button id="btn-rules-clear-all" class="btn" type="button">Clear</button>
+    </div>
+
+    <div id="scan-modal-presets" class="scan-modal-presets">
+      <div class="preset-header">
+        <span class="preset-label">Recommended presets</span>
+      </div>
+      <span id="preset-help" class="preset-help"></span>
+      <div id="scan-preset-list" class="preset-list"></div>
+    </div>
+
+    <div class="scan-modal-summary">
+      <span id="rules-count">0 selected</span>
+    </div>
+
+    <div id="rules-list" class="rules-list"></div>
+
+    <div class="scan-modal-footer">
+      <button id="btn-scan-cancel" class="btn" type="button">Cancel</button>
+      <button id="btn-scan-run-selected" class="btn btn-primary" type="button">Run Scan</button>
+    </div>
+  </div>
+</div>
+
 <script src="../shared/messaging.js"></script>
 <script src="../core/scoring.js"></script>
 <script src="../core/formatter.js"></script>
