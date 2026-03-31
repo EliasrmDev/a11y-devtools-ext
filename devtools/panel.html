@@ -24,11 +24,21 @@
     </button>
   </div>
 
-  <div class="topbar-center">
-    <div class="score-chip">
-      <span class="score-chip-label">Score</span>
-      <span id="score-display" class="score-chip-value">—</span>
-      <span id="grade-display" class="score-chip-grade"></span>
+  <div class="topbar-right">
+    <div class="score-and-filter">
+      <div class="score-chip">
+        <span class="score-chip-label">Score</span>
+        <span id="score-display" class="score-chip-value">—</span>
+        <span id="grade-display" class="score-chip-grade"></span>
+      </div>
+      <select id="filter-impact" class="select">
+        <option value="">All impacts</option>
+        <option value="critical">Critical</option>
+        <option value="serious">Serious</option>
+        <option value="moderate">Moderate</option>
+        <option value="minor">Minor</option>
+      </select>
+      <input id="search" type="search" placeholder="Search issues…" class="search-input">
     </div>
     <div class="counters">
       <span class="counter critical" id="nav-critical">
@@ -44,17 +54,6 @@
         <span class="dot"></span><span id="c-minor">0</span> Minor
       </span>
     </div>
-  </div>
-
-  <div class="topbar-right">
-    <input id="search" type="search" placeholder="Search issues…" class="search-input">
-    <select id="filter-impact" class="select">
-      <option value="">All impacts</option>
-      <option value="critical">Critical</option>
-      <option value="serious">Serious</option>
-      <option value="moderate">Moderate</option>
-      <option value="minor">Minor</option>
-    </select>
   </div>
 </div>
 

@@ -349,7 +349,7 @@ function pickerClearScope() {
 
 function runPickerScan(selector, label) {
   state.elementScope = selector;
-  updateScanTargetBar(label || selector);
+  updateScanTargetBar(label || selector, selector);
 
   showLoading(true);
   $('btn-export').disabled = true;
@@ -1112,6 +1112,8 @@ function renderChecksSection(node) {
             ${check.relatedNodes.map(rn => `
               <div class="check-related-node">
                 <code class="check-related-sel" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.target)}</code>
+                <span style="flex:1"></span>
+                <button class="nd-inspect-btn" data-action="inspect" data-sel="${escHtml(rn.target)}" title="Inspect in DOM">➡ DOM</button>
                 ${rn.html ? `<div class="check-related-html" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.html)}</div>` : ''}
               </div>
             `).join('')}
@@ -1276,17 +1278,30 @@ function renderAll() {
   renderDetail();
 }
 
-function updateScanTargetBar(label) {
+function updateScanTargetBar(label, selector) {
   const bar = $('scan-target-bar');
   const sel = $('scan-target-selector');
   if (!bar || !sel) return;
   state.lastScanTarget = label || null;
+  state.lastScanTargetSelector = selector || null;
   if (label) {
     bar.classList.remove('hidden');
     sel.textContent = label;
+    if (selector) {
+      sel.dataset.hlSel = selector;
+      sel.title = 'Click to highlight';
+      sel.style.cursor = 'pointer';
+      sel.onclick = () => highlightSelector(selector, null, null, null);
+    } else {
+      delete sel.dataset.hlSel;
+      sel.title = '';
+      sel.style.cursor = '';
+      sel.onclick = null;
+    }
   } else {
     bar.classList.add('hidden');
     sel.textContent = '';
+    sel.onclick = null;
   }
 }
 

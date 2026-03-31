@@ -20,7 +20,7 @@
   --c-error:    #f44747;
   --c-primary:  #0e70c0;
   --c-primary-l:#569cd6;
-  --bar-h:      100px;
+  --bar-h:      60px;
   --tab-h:      34px;
   --status-h:   22px;
   --picker-bar-h: 22px;
@@ -35,9 +35,10 @@ html, body {
 }
 
 body {
-  display: grid;
-  grid-template-rows: auto auto auto auto 1fr auto;
+  display: flex;
+  flex-direction: column;
 }
+.main-split { flex: 1; min-height: 0; }
 
 /* ── Topbar ── */
 .topbar {
@@ -52,6 +53,7 @@ body {
   background: var(--c-surface);
   border-bottom: 1px solid var(--c-border);
   flex-shrink: 0;
+  padding: 6px;
 }
 .topbar-left  {
   display: flex;
@@ -62,8 +64,19 @@ body {
   gap: 6px;
   height: 60px;
 }
-.topbar-center{ display: flex; align-items: center; gap: 10px; justify-content: center; }
-.topbar-right { display: flex; align-items: center; gap: 6px; }
+.topbar-right{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.score-and-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
 #btn-export {
   height: 60px;
@@ -96,7 +109,7 @@ body {
 
 /* Score chip */
 .score-chip {
-  display: flex; align-items: baseline; gap: 4px;
+  display: flex; align-items: center; gap: 4px;
   background: var(--c-surface2);
   border: 1px solid var(--c-border);
   border-radius: 3px;
@@ -268,7 +281,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-radius: 2px;
+  padding: 1px 4px;
 }
+.scan-target-selector[data-hl-sel] { cursor: pointer; }
+.scan-target-selector[data-hl-sel]:hover { background: color-mix(in srgb, var(--c-primary-l) 12%, transparent); }
 
 .tab {
   display: flex; align-items: center; gap: 5px;
@@ -543,6 +560,10 @@ body {
   padding: 2px 0 2px 8px;
   border-left: 2px solid var(--c-border);
   margin: 2px 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 .check-related-sel {
   font-size: 10px;
@@ -560,8 +581,16 @@ body {
   white-space: pre;
   margin-top: 2px;
   cursor: pointer;
+  width: 100%;
 }
 .check-related-html:hover { background: color-mix(in srgb, var(--c-primary-l) 12%, transparent); }
+.nd-inspect-btn {
+  display: inline-block; padding: 1px 5px; font-size: 9px;
+  border: 1px solid var(--c-border); border-radius: 2px;
+  background: var(--c-surface); color: var(--c-text);
+  cursor: pointer; flex-shrink: 0;
+}
+.nd-inspect-btn:hover { background: var(--c-hover); }
 
 .nd-nav {
   display: flex; justify-content: flex-end; gap: 4px; margin-top: 4px;
