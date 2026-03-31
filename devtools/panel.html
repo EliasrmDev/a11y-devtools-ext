@@ -67,11 +67,18 @@
     <span id="picker-scope-reason" class="picker-scope-reason"></span>
   </div>
   <div class="picker-scope-actions">
-    <button id="btn-scope-expand" class="btn btn-small" title="Expand scope to parent element">▲ Expand</button>
-    <button id="btn-scope-reduce" class="btn btn-small" title="Reduce scope to first child">▼ Reduce</button>
-    <button id="btn-scope-scan" class="btn btn-small btn-primary" title="Run scan on this scope">⚡ Scan</button>
+    <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ Scan Scope</button>
+    <button id="btn-scope-scan-el" class="btn btn-small btn-primary" title="Run scan on the selected element">⚡ Scan Element</button>
     <button id="btn-scope-clear" class="btn btn-small" title="Cancel selection">✕</button>
   </div>
+</div>
+
+<!-- ══════════ SCAN TARGET BAR ══════════ -->
+<div id="scan-target-bar" class="scan-target-bar hidden">
+  <span class="scan-target-icon">🎯</span>
+  <span class="scan-target-label">Scanned:</span>
+  <code id="scan-target-selector" class="scan-target-selector"></code>
+  <button id="btn-clear-target" class="btn btn-small" title="Clear scoped scan and return to full page">✕ Clear</button>
 </div>
 
 <!-- ══════════ TAB BAR ══════════ -->

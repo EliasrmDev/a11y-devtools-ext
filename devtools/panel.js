@@ -29,9 +29,11 @@ const state = {
   previousResults: null,   // for compare
   pickerActive: false,
   pickerSelector: null,
+  pickerLabel: '',
   pickerScopeSelector: null,
   pickerScopeReason: '',
   pickerScopeLabel: '',
+  lastScanTarget: null,
 };
 
 // ─────────────────────────────────────────────
@@ -151,7 +153,7 @@ function showLoading(show) {
 
 function escHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 function impactDot(impact) {
@@ -214,6 +216,7 @@ function runScan(filterType, selectedValues) {
       $('btn-export').disabled = false;
       renderAll();
       setStatus(`Scan complete — ${resp.results.url || ''} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`);
+      updateScanTargetBar('Full page');
     } catch (e) {
       showLoading(false);
       $('btn-scan').disabled = false;
@@ -284,6 +287,7 @@ function togglePicker() {
 
 function onPickerSelected(data) {
   state.pickerSelector      = data.selector;
+  state.pickerLabel         = data.label || data.selector;
   state.pickerScopeSelector = data.scopeSelector;
   state.pickerScopeReason   = data.scopeReason || '';
   state.pickerScopeLabel    = data.scopeLabel || data.scopeSelector;
@@ -320,22 +324,22 @@ function onPickerCancelled() {
   setStatus('Picker cancelled');
 }
 
-function pickerExpandScope() {
-  safeSendMessage({ type: MSG.PICKER_EXPAND_SCOPE, tabId: tabId() });
-}
-
-function pickerReduceScope() {
-  safeSendMessage({ type: MSG.PICKER_REDUCE_SCOPE, tabId: tabId() });
-}
-
 function pickerScanScope() {
   const selector = state.pickerScopeSelector;
   if (!selector) return;
-  // Stop picker in content, then scan
   safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
   state.pickerActive = false;
   updatePickerUI();
   runPickerScan(selector, state.pickerScopeLabel);
+}
+
+function pickerScanElement() {
+  const selector = state.pickerSelector;
+  if (!selector) return;
+  safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
+  state.pickerActive = false;
+  updatePickerUI();
+  runPickerScan(selector, state.pickerLabel);
 }
 
 function pickerClearScope() {
@@ -345,10 +349,7 @@ function pickerClearScope() {
 
 function runPickerScan(selector, label) {
   state.elementScope = selector;
-  const targetBar = $('element-target-bar');
-  const targetSel = $('element-target-selector');
-  if (targetBar) targetBar.classList.remove('hidden');
-  if (targetSel) targetSel.textContent = selector;
+  updateScanTargetBar(label || selector);
 
   showLoading(true);
   $('btn-export').disabled = true;
@@ -414,6 +415,16 @@ function updatePickerUI() {
     scopeBar.classList.remove('hidden');
     scopeSel.textContent    = state.pickerScopeLabel || state.pickerScopeSelector;
     scopeReason.textContent = state.pickerScopeReason ? '(' + state.pickerScopeReason + ')' : '';
+
+    // Show/hide Scan Element button based on whether an element is selected
+    const scanElBtn = $('btn-scope-scan-el');
+    if (scanElBtn) scanElBtn.style.display = state.pickerSelector ? '' : 'none';
+
+    // Hide Scan Scope when scope is the same as selectedEl
+    const isSameAsSelected = state.pickerScopeSelector && state.pickerSelector
+      && state.pickerScopeSelector === state.pickerSelector;
+    const scopeScanBtn = $('btn-scope-scan');
+    if (scopeScanBtn) scopeScanBtn.style.display = isSameAsSelected ? 'none' : '';
   } else {
     scopeBar.classList.add('hidden');
   }
@@ -925,6 +936,7 @@ function safeSendMessage(msg, callback) {
 // Highlight helpers
 // ─────────────────────────────────────────────
 function highlightSelector(selector, impact, description, help) {
+  clearHighlights();
   safeSendMessage({
     type: MSG.HIGHLIGHT_ELEMENT,
     tabId: tabId(), selector, impact, description, help,
@@ -1027,12 +1039,7 @@ function renderIssueList() {
         ni.dataset.nodeIdx = nIdx;
         ni.innerHTML = `
           <span class="node-selector" title="${escHtml(node.selector)}">${escHtml(node.primarySelector || node.selector)}</span>
-          <button class="node-highlight-btn" title="Highlight">◎</button>
         `;
-        ni.querySelector('.node-highlight-btn').addEventListener('click', (e) => {
-          e.stopPropagation();
-          highlightSelector(node.primarySelector, rule.impact, rule.description, rule.help);
-        });
         ni.addEventListener('click', () => selectNode(rIdx, nIdx));
         frag.appendChild(ni);
       });
@@ -1086,6 +1093,71 @@ function selectNode(rIdx, nIdx) {
 }
 
 // ─────────────────────────────────────────────
+// Render checks detail (any/all/none with data & relatedNodes)
+// ─────────────────────────────────────────────
+function renderChecksSection(node) {
+  if (!node.checks || !node.checks.length) return '';
+
+  return node.checks.map(group => {
+    const checksHtml = group.checks.map(check => {
+      const impactTag = check.impact
+        ? `<span class="check-impact ${check.impact}">${check.impact}</span>`
+        : '';
+
+      const dataHtml = check.data ? renderCheckData(check.data) : '';
+
+      const relHtml = check.relatedNodes.length
+        ? `<div class="check-related">
+            <span class="check-related-label">Related elements:</span>
+            ${check.relatedNodes.map(rn => `
+              <div class="check-related-node">
+                <code class="check-related-sel" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.target)}</code>
+                ${rn.html ? `<div class="check-related-html" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.html)}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>`
+        : '';
+
+      return `
+        <div class="check-item">
+          <div class="check-msg">
+            ${impactTag}
+            <code class="check-id">${escHtml(check.id)}</code>
+            <span>${escHtml(check.message)}</span>
+          </div>
+          ${dataHtml}
+          ${relHtml}
+        </div>`;
+    }).join('');
+
+    const groupColor = group.type === 'any' ? 'var(--c-warn)' : group.type === 'all' ? 'var(--c-critical)' : 'var(--c-pass)';
+
+    return `
+      <div class="checks-group">
+        <div class="checks-group-label" style="border-left-color:${groupColor}">${escHtml(group.label)}</div>
+        ${checksHtml}
+      </div>`;
+  }).join('');
+}
+
+function renderCheckData(data) {
+  if (typeof data === 'string') {
+    return `<div class="check-data"><span class="check-data-label">Data:</span> ${escHtml(data)}</div>`;
+  }
+  if (typeof data !== 'object' || data === null) return '';
+
+  const entries = Object.entries(data).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  if (!entries.length) return '';
+
+  const rows = entries.map(([key, val]) => {
+    const display = typeof val === 'object' ? JSON.stringify(val) : String(val);
+    return `<div class="check-data-row"><span class="check-data-key">${escHtml(key)}:</span> <span class="check-data-val">${escHtml(display)}</span></div>`;
+  }).join('');
+
+  return `<div class="check-data">${rows}</div>`;
+}
+
+// ─────────────────────────────────────────────
 // Render detail panel
 // ─────────────────────────────────────────────
 function renderDetail() {
@@ -1115,12 +1187,13 @@ function renderDetail() {
       <div class="node-detail-item ${isActive ? 'active-node' : ''}" data-node-idx="${i}">
         <div class="nd-selector">
           <span style="color:var(--c-sub)">#${i+1}</span>
-          ${escHtml(node.primarySelector || node.selector)}
+          <button class="nd-hl-btn" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.primarySelector || node.selector)}</button>
           <span style="flex:1"></span>
           <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">➡ DOM</button>
         </div>
-        ${node.html ? `<div class="nd-html">${escHtml(node.html)}</div>` : ''}
+        ${node.html ? `<div class="nd-html" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.html)}</div>` : ''}
         ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary)}</div>` : ''}
+        ${isActive ? renderChecksSection(node) : ''}
       </div>`;
   }).join('');
 
@@ -1159,9 +1232,22 @@ function renderDetail() {
     });
   });
 
+  // Highlight on nd-hl-btn, nd-html, and relatedNodes click
+  content.querySelectorAll('[data-hl-sel]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-action]')) return;
+      e.stopPropagation();
+      const sel = el.dataset.hlSel;
+      if (sel) highlightSelector(sel, rule.impact, rule.description, rule.help);
+    });
+  });
+
   // Inspect in DOM tree buttons
   content.querySelectorAll('[data-action="inspect"]').forEach(btn => {
-    btn.addEventListener('click', () => inspectInDomTree(btn.dataset.sel));
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      inspectInDomTree(btn.dataset.sel);
+    });
   });
 
   // Prev / Next node
@@ -1190,6 +1276,26 @@ function renderAll() {
   renderDetail();
 }
 
+function updateScanTargetBar(label) {
+  const bar = $('scan-target-bar');
+  const sel = $('scan-target-selector');
+  if (!bar || !sel) return;
+  state.lastScanTarget = label || null;
+  if (label) {
+    bar.classList.remove('hidden');
+    sel.textContent = label;
+  } else {
+    bar.classList.add('hidden');
+    sel.textContent = '';
+  }
+}
+
+function clearScanTarget() {
+  state.elementScope = null;
+  state.lastScanTarget = null;
+  updateScanTargetBar(null);
+}
+
 // ─────────────────────────────────────────────
 // Export
 // ─────────────────────────────────────────────
@@ -1215,10 +1321,10 @@ $('btn-export').addEventListener('click', exportJSON);
 
 // Picker
 $('btn-picker').addEventListener('click', togglePicker);
-$('btn-scope-expand').addEventListener('click', pickerExpandScope);
-$('btn-scope-reduce').addEventListener('click', pickerReduceScope);
 $('btn-scope-scan').addEventListener('click', pickerScanScope);
+$('btn-scope-scan-el').addEventListener('click', pickerScanElement);
 $('btn-scope-clear').addEventListener('click', pickerClearScope);
+$('btn-clear-target').addEventListener('click', clearScanTarget);
 
 $('btn-scan-modal-close').addEventListener('click', closeScanModal);
 $('btn-scan-cancel').addEventListener('click', closeScanModal);

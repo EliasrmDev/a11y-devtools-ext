@@ -49,8 +49,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     // ── Picker: panel → content ──
     case MSG.PICKER_START:
     case MSG.PICKER_STOP:
-    case MSG.PICKER_EXPAND_SCOPE:
-    case MSG.PICKER_REDUCE_SCOPE:
       ensurePickerScript(msg.tabId)
         .then(() => chrome.tabs.sendMessage(msg.tabId, msg))
         .catch(() => {});

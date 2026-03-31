@@ -85,7 +85,7 @@ window.__a11yPickerLoaded = true;
         pointer-events: auto;
         display: flex;
         gap: 4px;
-        z-index: 2;
+        z-index: 10;
       }
       .scope-btn {
         font: 600 10px/1 'SF Mono','Menlo','Consolas',monospace;
@@ -97,9 +97,8 @@ window.__a11yPickerLoaded = true;
         color: #fff;
       }
       .scope-btn:hover { filter: brightness(1.15); }
-      .scope-btn.expand  { background: #e8710a; }
-      .scope-btn.reduce  { background: #1a73e8; }
-      .scope-btn.scan    { background: #0d652d; }
+      .scope-btn.scan    { background: #e8710a; }
+      .scope-btn.scan-el { background: #0d652d; }
       .scope-btn.cancel  { background: #555; }
     `;
     shadow.appendChild(style);
@@ -125,9 +124,8 @@ window.__a11yPickerLoaded = true;
     controls.dataset.role = 'scope-controls';
     controls.style.display = 'none';
     controls.innerHTML = `
-      <button class="scope-btn expand"  data-action="expand"  title="Expand scope to parent">▲ Expand</button>
-      <button class="scope-btn reduce"  data-action="reduce"  title="Reduce scope to first child">▼ Reduce</button>
-      <button class="scope-btn scan"    data-action="scan"    title="Scan this scope">⚡ Scan</button>
+      <button class="scope-btn scan"    data-action="scan-scope" title="Scan the current scope">⚡ Scan Scope</button>
+      <button class="scope-btn scan-el" data-action="scan-element" title="Scan the selected element">⚡ Scan Element</button>
       <button class="scope-btn cancel"  data-action="cancel"  title="Cancel picker">✕ Cancel</button>
     `;
     controls.addEventListener('click', (e) => {
@@ -274,6 +272,10 @@ window.__a11yPickerLoaded = true;
     const r = el.getBoundingClientRect();
     ctrl.style.display = 'flex';
 
+    // Show/hide context-dependent buttons
+    const scanScopeBtn  = ctrl.querySelector('[data-action="scan-scope"]');
+    if (scanScopeBtn)  scanScopeBtn.style.display  = selectedEl !== scopeEl ? '' : 'none';
+
     // Measure controls width to center horizontally
     const ctrlW = ctrl.offsetWidth || 200;
     const ctrlH = ctrl.offsetHeight || 28;
@@ -410,35 +412,20 @@ window.__a11yPickerLoaded = true;
   // Scope actions
   // ─────────────────────────────────────────
   function handleScopeAction(action) {
-    if (action === 'expand' && scopeEl) {
-      const parent = scopeEl.parentElement;
-      if (parent && parent !== document.body && parent !== document.documentElement) {
-        scopeEl = parent;
-        scopeReason = 'manual';
-        notifyPanel('PICKER_SCOPE_CHANGED', {
-          scopeSelector: buildSelector(scopeEl),
-          scopeReason:   'manual',
-          scopeLabel:    elementLabel(scopeEl),
-        });
-      }
-    } else if (action === 'reduce' && scopeEl) {
-      // Find first element child (skip text nodes)
-      const firstChild = scopeEl.querySelector(':scope > *');
-      if (firstChild) {
-        scopeEl = firstChild;
-        scopeReason = 'manual';
-        notifyPanel('PICKER_SCOPE_CHANGED', {
-          scopeSelector: buildSelector(scopeEl),
-          scopeReason:   'manual',
-          scopeLabel:    elementLabel(scopeEl),
-        });
-      }
-    } else if (action === 'scan') {
-      const selector = buildSelector(scopeEl || selectedEl);
+    if (action === 'scan-scope') {
+      const target = scopeEl || selectedEl;
+      const selector = buildSelector(target);
       deactivate();
       notifyPanel('PICKER_SCAN', {
         selector: selector,
-        label:    elementLabel(scopeEl || selectedEl),
+        label:    elementLabel(target),
+      });
+    } else if (action === 'scan-element' && selectedEl) {
+      const selector = buildSelector(selectedEl);
+      deactivate();
+      notifyPanel('PICKER_SCAN', {
+        selector: selector,
+        label:    elementLabel(selectedEl),
       });
     } else if (action === 'cancel') {
       deactivate();
@@ -507,12 +494,7 @@ window.__a11yPickerLoaded = true;
       case 'PICKER_STOP':
         deactivate();
         break;
-      case 'PICKER_EXPAND_SCOPE':
-        handleScopeAction('expand');
-        break;
-      case 'PICKER_REDUCE_SCOPE':
-        handleScopeAction('reduce');
-        break;
+
     }
   });
 

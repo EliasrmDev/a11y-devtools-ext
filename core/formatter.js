@@ -51,7 +51,32 @@ function formatNode(node) {
     any:  (node.any  || []).map(c => c.message),
     all:  (node.all  || []).map(c => c.message),
     none: (node.none || []).map(c => c.message),
+    // Full check details for the detail panel
+    checks: formatChecks(node),
   };
+}
+
+function formatChecks(node) {
+  const groups = [];
+  const mapCheck = c => ({
+    id:      c.id || '',
+    impact:  c.impact || null,
+    message: c.message || '',
+    data:    c.data || null,
+    relatedNodes: (c.relatedNodes || []).map(rn => ({
+      html:   rn.html || '',
+      target: Array.isArray(rn.target) ? rn.target.join(', ') : (rn.target || ''),
+    })),
+  });
+
+  if (node.any && node.any.length)
+    groups.push({ type: 'any', label: 'Must fix at least one', checks: node.any.map(mapCheck) });
+  if (node.all && node.all.length)
+    groups.push({ type: 'all', label: 'Must fix all', checks: node.all.map(mapCheck) });
+  if (node.none && node.none.length)
+    groups.push({ type: 'none', label: 'Must not have', checks: node.none.map(mapCheck) });
+
+  return groups;
 }
 
 function countsByImpact(rules) {
