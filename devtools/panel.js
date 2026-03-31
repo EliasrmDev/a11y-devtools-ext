@@ -256,79 +256,6 @@ function getSelectedElementSelector() {
   });
 }
 
-function scanSelectedElement() {
-  getSelectedElementSelector().then(selector => {
-    if (!selector) {
-      setStatus('Select an element in the Elements panel first ($0).', 'warning');
-      return;
-    }
-
-    state.elementScope = selector;
-    const targetBar = $('element-target-bar');
-    const targetSel = $('element-target-selector');
-    if (targetBar) targetBar.classList.remove('hidden');
-    if (targetSel) targetSel.textContent = selector;
-
-    showLoading(true);
-    $('btn-scan-element').disabled = true;
-    $('btn-export').disabled = true;
-    setStatus(`Scanning element: ${selector}...`);
-
-    const defaultTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
-    safeSendMessage({
-      type: MSG.SCAN_ELEMENT,
-      tabId: tabId(),
-      selector: selector,
-      filterType: 'tag',
-      selectedTags: defaultTags,
-      selectedRuleIds: [],
-    }, (resp) => {
-      try {
-        showLoading(false);
-        $('btn-scan-element').disabled = false;
-
-        if (chrome.runtime.lastError) {
-          setStatus('Error: ' + chrome.runtime.lastError.message, 'error');
-          return;
-        }
-        if (!resp || resp.type === MSG.SCAN_ERROR) {
-          setStatus('Scan error: ' + (resp?.error || 'unknown'), 'error');
-          return;
-        }
-        if (!resp.results) {
-          setStatus('Scan returned no results', 'warning');
-          return;
-        }
-
-        state.previousResults = state.rawResults;
-        state.rawResults      = resp.results;
-        state.formattedResults = formatResults(resp.results);
-        state.selectedRuleIdx = -1;
-        state.selectedNodeIdx = -1;
-        clearHighlights();
-
-        $('btn-export').disabled = false;
-        renderAll();
-        setStatus(`Element scan complete — ${selector} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`, 'success');
-      } catch (e) {
-        showLoading(false);
-        $('btn-scan-element').disabled = false;
-        if (e?.message?.includes('Extension context invalidated')) {
-          setStatus('Extension reloaded — please close and reopen DevTools.');
-        } else {
-          throw e;
-        }
-      }
-    });
-  });
-}
-
-function clearElementScope() {
-  state.elementScope = null;
-  const targetBar = $('element-target-bar');
-  if (targetBar) targetBar.classList.add('hidden');
-}
-
 // ─────────────────────────────────────────────
 // Element Picker
 // ─────────────────────────────────────────────
@@ -424,7 +351,6 @@ function runPickerScan(selector, label) {
   if (targetSel) targetSel.textContent = selector;
 
   showLoading(true);
-  $('btn-scan-element').disabled = true;
   $('btn-export').disabled = true;
   setStatus(`Scanning scope: ${label || selector}...`);
 
@@ -439,7 +365,6 @@ function runPickerScan(selector, label) {
   }, (resp) => {
     try {
       showLoading(false);
-      $('btn-scan-element').disabled = false;
 
       if (chrome.runtime.lastError) {
         setStatus('Error: ' + chrome.runtime.lastError.message, 'error');
@@ -466,7 +391,6 @@ function runPickerScan(selector, label) {
       setStatus(`Scope scan complete — ${label || selector} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`, 'success');
     } catch (e) {
       showLoading(false);
-      $('btn-scan-element').disabled = false;
       if (e?.message?.includes('Extension context invalidated')) {
         setStatus('Extension reloaded — please close and reopen DevTools.');
       } else {
@@ -1287,8 +1211,6 @@ function exportJSON() {
 // ─────────────────────────────────────────────
 
 $('btn-scan').addEventListener('click', openScanModalFlow);
-$('btn-scan-element').addEventListener('click', scanSelectedElement);
-$('btn-clear-element-scope').addEventListener('click', clearElementScope);
 $('btn-export').addEventListener('click', exportJSON);
 
 // Picker

@@ -300,12 +300,17 @@ window.__a11yPickerLoaded = true;
     const hasSelected = !!selectedEl;
     const hasHover    = hoverEl && hoverEl !== selectedEl;
 
-    // Scope (bottom layer, slot 0 = closest to element)
+    // Scope (bottom layer — label to the right of the box)
     const scBox = getBox('scope');
     const scLbl = getLabel('scope');
     if (hasScope) {
       positionBox(scBox, scLbl, scopeEl, COLORS.scope, 0);
       scLbl.textContent = '⚡ Scope: ' + elementLabel(scopeEl) + (scopeReason ? '  (' + scopeReason + ')' : '');
+      // Reposition scope label to the right of the element
+      const sr  = scopeEl.getBoundingClientRect();
+      const gap = 6;
+      const lblW = scLbl.getBoundingClientRect().width + 20; // add some padding to prevent touching the box border
+      scLbl.style.left = Math.min(sr.right + gap, window.innerWidth - lblW) + 'px';
       positionControls(scopeEl);
     } else if (scopeEl && scopeEl === selectedEl) {
       scBox.style.display  = 'none';
