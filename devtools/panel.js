@@ -1093,6 +1093,123 @@ function selectNode(rIdx, nIdx) {
 }
 
 // ─────────────────────────────────────────────
+// AI Suggest Fix (Chrome Built-in AI / Prompt API)
+// ─────────────────────────────────────────────
+function buildFixPrompt(rule, node) {
+  const messages = [];
+  for (const group of (node.checks || [])) {
+    for (const c of group.checks) {
+      messages.push(`[${group.type}] ${c.message}`);
+    }
+  }
+
+  return `You are a web accessibility expert. Provide a concise fix for this accessibility issue.
+
+Rule: ${rule.id} — ${rule.description}
+Impact: ${rule.impact || 'unknown'}
+Help: ${rule.help}
+Element HTML: ${node.html || 'N/A'}
+Selector: ${node.selector || 'N/A'}
+
+Check messages:
+${messages.join('\n')}
+
+Respond with:
+1. A brief explanation (1-2 sentences) of the problem.
+2. The corrected HTML code if applicable, or clear step-by-step instructions if the fix is not purely code.
+Keep it short and actionable. Use markdown code blocks for code.`;
+}
+
+function suggestAIFix(rule, node, containerEl) {
+  const outputEl = containerEl.querySelector('.ai-fix-output');
+  const btnEl = containerEl.querySelector('.ai-fix-btn');
+
+  // If already has content, toggle visibility
+  if (outputEl.dataset.loaded === 'true') {
+    outputEl.classList.toggle('hidden');
+    return;
+  }
+
+  btnEl.disabled = true;
+  btnEl.textContent = '⏳ Generating…';
+  outputEl.classList.remove('hidden');
+  outputEl.textContent = 'Waiting for AI model…';
+
+  const prompt = buildFixPrompt(rule, node);
+  const systemPrompt = 'You are a concise web accessibility remediation assistant. Respond only with the fix. Use markdown.';
+
+  let fullText = '';
+  const port = chrome.runtime.connect({ name: 'ai-fix' });
+
+  port.onMessage.addListener((msg) => {
+    if (msg.type === 'downloading') {
+      const pct = msg.total > 0 ? Math.round((msg.loaded / msg.total) * 100) : 0;
+      outputEl.innerHTML = `<div class="ai-download-progress">
+        <span>Downloading AI model… ${pct}%</span>
+        <div class="ai-progress-bar"><div class="ai-progress-fill" style="width:${pct}%"></div></div>
+      </div>`;
+      btnEl.textContent = '⏳ Downloading…';
+    } else if (msg.type === 'chunk') {
+      // Detect cumulative vs delta: if chunk contains full text so far, it's cumulative
+      if (msg.text.length >= fullText.length && msg.text.startsWith(fullText)) {
+        fullText = msg.text;
+      } else {
+        fullText += msg.text;
+      }
+      btnEl.textContent = '⏳ Generating…';
+      outputEl.innerHTML = formatAIResponse(fullText);
+    } else if (msg.type === 'done') {
+      outputEl.dataset.loaded = 'true';
+      btnEl.textContent = '🤖 Suggest Fix';
+      btnEl.disabled = false;
+      try { port.disconnect(); } catch (_) {}
+    } else if (msg.type === 'error') {
+      if (msg.error === 'not-available') {
+        outputEl.innerHTML = `<div class="ai-fix-error">
+          <strong>Chrome Built-in AI not available.</strong><br>
+          <span>Enable <code>chrome://flags/#prompt-api-for-gemini-nano</code> and <code>chrome://flags/#optimization-guide-on-device-model</code>, then restart Chrome.</span>
+        </div>`;
+      } else {
+        outputEl.innerHTML = `<div class="ai-fix-error">Error: ${escHtml(msg.error)}</div>`;
+      }
+      btnEl.textContent = '🤖 Suggest Fix';
+      btnEl.disabled = false;
+      try { port.disconnect(); } catch (_) {}
+    }
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (chrome.runtime.lastError) {
+      outputEl.innerHTML = `<div class="ai-fix-error">Error: ${escHtml(chrome.runtime.lastError.message)}</div>`;
+      btnEl.textContent = '🤖 Suggest Fix';
+      btnEl.disabled = false;
+    }
+  });
+
+  port.postMessage({ prompt, systemPrompt });
+}
+
+function formatAIResponse(text) {
+  // Minimal markdown → HTML: code blocks, inline code, bold, line breaks
+  let html = escHtml(text);
+  // Code blocks: ```lang\n...\n```
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre class="ai-code-block"><code>${code.trim()}</code></pre>`
+  );
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Line breaks (outside pre)
+  html = html.replace(/\n/g, '<br>');
+  // Fix <br> inside <pre>
+  html = html.replace(/<pre([^>]*)>([\s\S]*?)<\/pre>/g, (_, attrs, inner) =>
+    `<pre${attrs}>${inner.replace(/<br>/g, '\n')}</pre>`
+  );
+  return html;
+}
+
+// ─────────────────────────────────────────────
 // Render checks detail (any/all/none with data & relatedNodes)
 // ─────────────────────────────────────────────
 function renderChecksSection(node) {
@@ -1196,6 +1313,10 @@ function renderDetail() {
         ${node.html ? `<div class="nd-html" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.html)}</div>` : ''}
         ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary)}</div>` : ''}
         ${isActive ? renderChecksSection(node) : ''}
+        ${isActive ? `<div class="ai-fix-section" data-node-idx="${i}">
+          <button class="ai-fix-btn">🤖 Suggest Fix</button>
+          <div class="ai-fix-output hidden"></div>
+        </div>` : ''}
       </div>`;
   }).join('');
 
@@ -1229,6 +1350,7 @@ function renderDetail() {
   content.querySelectorAll('.node-detail-item').forEach(el => {
     el.addEventListener('click', (e) => {
       if (e.target.tagName === 'BUTTON') return;
+      if (e.target.closest('.ai-fix-section')) return;
       const i = parseInt(el.dataset.nodeIdx);
       selectNode(state.selectedRuleIdx, i);
     });
@@ -1267,6 +1389,17 @@ function renderDetail() {
 
   const btnCl = $('btn-clear-hl');
   if (btnCl) btnCl.addEventListener('click', clearHighlights);
+
+  // AI Suggest Fix buttons
+  content.querySelectorAll('.ai-fix-section').forEach(section => {
+    const nIdx = parseInt(section.dataset.nodeIdx);
+    const node = rule.nodes[nIdx];
+    if (!node) return;
+    section.querySelector('.ai-fix-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      suggestAIFix(rule, node, section);
+    });
+  });
 }
 
 // ─────────────────────────────────────────────

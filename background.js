@@ -250,3 +250,46 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
 
   return { results: result, scannedAt: Date.now() };
 }
+
+// ── AI Suggest Fix (Chrome Built-in AI via port) ──
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== 'ai-fix') return;
+  port.onMessage.addListener(async (msg) => {
+    try {
+      if (!self.LanguageModel) {
+        port.postMessage({ type: 'error', error: 'not-available' });
+        return;
+      }
+      const availability = await LanguageModel.availability();
+      if (availability === 'unavailable') {
+        port.postMessage({ type: 'error', error: 'not-available' });
+        return;
+      }
+
+      // If model needs downloading, create with monitor callback and report progress
+      const createOpts = { systemPrompt: msg.systemPrompt || '' };
+      if (availability === 'downloadable') {
+        port.postMessage({ type: 'downloading', loaded: 0, total: 1 });
+        createOpts.monitor = (m) => {
+          m.addEventListener('downloadprogress', (e) => {
+            port.postMessage({ type: 'downloading', loaded: e.loaded, total: e.total });
+          });
+        };
+      }
+
+      const session = await LanguageModel.create(createOpts);
+
+      const stream = session.promptStreaming(msg.prompt);
+      const reader = stream.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        port.postMessage({ type: 'chunk', text: value });
+      }
+      session.destroy();
+      port.postMessage({ type: 'done' });
+    } catch (err) {
+      port.postMessage({ type: 'error', error: err.message || String(err) });
+    }
+  });
+});
