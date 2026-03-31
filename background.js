@@ -45,6 +45,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         .catch(() => {});
       sendResponse({ ok: true });
       return true;
+
+    // ── Picker: panel → content ──
+    case MSG.PICKER_START:
+    case MSG.PICKER_STOP:
+    case MSG.PICKER_EXPAND_SCOPE:
+    case MSG.PICKER_REDUCE_SCOPE:
+      ensurePickerScript(msg.tabId)
+        .then(() => chrome.tabs.sendMessage(msg.tabId, msg))
+        .catch(() => {});
+      sendResponse({ ok: true });
+      return true;
+
+    // ── Picker: content → panel (relayed via background) ──
+    case MSG.PICKER_SELECTED:
+    case MSG.PICKER_SCOPE_CHANGED:
+    case MSG.PICKER_SCAN:
+    case MSG.PICKER_CANCELLED:
+      // Only relay if from content script (has sender.tab), not from self
+      if (sender.tab) {
+        chrome.runtime.sendMessage(msg).catch(() => {});
+      }
+      break;
   }
   return false;
 });
@@ -54,6 +76,15 @@ async function ensureContentScript(tabId) {
     await chrome.scripting.executeScript({
       target: { tabId },
       files: ['content/content.js'],
+    });
+  } catch (_) { /* tab may not be scriptable */ }
+}
+
+async function ensurePickerScript(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content/picker.js'],
     });
   } catch (_) { /* tab may not be scriptable */ }
 }

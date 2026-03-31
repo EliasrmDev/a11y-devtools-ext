@@ -18,6 +18,10 @@
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
       Scan Element
     </button>
+    <button id="btn-picker" class="btn" title="Pick an element from the page to scan">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 3l14 8-6 2-2 6z"/><path d="M14 14l4 4"/></svg>
+      Pick Element
+    </button>
     <button id="btn-export" class="btn" disabled>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Export JSON
@@ -63,6 +67,22 @@
   <span class="element-target-label">Element scope:</span>
   <code id="element-target-selector" class="element-target-selector"></code>
   <button id="btn-clear-element-scope" class="btn btn-small" title="Clear element scope and show full page results">✕ Clear</button>
+</div>
+
+<!-- ══════════ PICKER SCOPE BAR ══════════ -->
+<div id="picker-scope-bar" class="picker-scope-bar hidden">
+  <span class="picker-scope-icon">⚡</span>
+  <div class="picker-scope-info">
+    <span class="picker-scope-label">Scanning:</span>
+    <code id="picker-scope-selector" class="picker-scope-selector"></code>
+    <span id="picker-scope-reason" class="picker-scope-reason"></span>
+  </div>
+  <div class="picker-scope-actions">
+    <button id="btn-scope-expand" class="btn btn-small" title="Expand scope to parent element">▲ Expand</button>
+    <button id="btn-scope-reduce" class="btn btn-small" title="Reduce scope to first child">▼ Reduce</button>
+    <button id="btn-scope-scan" class="btn btn-small btn-primary" title="Run scan on this scope">⚡ Scan</button>
+    <button id="btn-scope-clear" class="btn btn-small" title="Cancel selection">✕</button>
+  </div>
 </div>
 
 <!-- ══════════ TAB BAR ══════════ -->

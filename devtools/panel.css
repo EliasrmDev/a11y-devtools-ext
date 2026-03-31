@@ -161,6 +161,63 @@ html, body {
   padding: 1px 6px;
 }
 
+/* ── Picker button active state ── */
+.btn.picker-active {
+  background: var(--c-primary);
+  color: #fff;
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 2px rgba(14,112,192,0.35);
+}
+
+/* ── Picker scope bar ── */
+.picker-scope-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  background: linear-gradient(90deg, rgba(232,113,10,0.08), transparent);
+  border-bottom: 1px solid var(--c-border);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.picker-scope-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.picker-scope-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.picker-scope-label {
+  color: var(--c-sub);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.picker-scope-selector {
+  color: #e8710a;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.picker-scope-reason {
+  color: var(--c-sub);
+  font-size: 9px;
+  flex-shrink: 0;
+}
+.picker-scope-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .tab {
   display: flex; align-items: center; gap: 5px;
   padding: 0 14px;

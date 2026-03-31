@@ -27,6 +27,11 @@ const state = {
   highlightedSelectors: new Set(),
   elementScope: null,
   previousResults: null,   // for compare
+  pickerActive: false,
+  pickerSelector: null,
+  pickerScopeSelector: null,
+  pickerScopeReason: '',
+  pickerScopeLabel: '',
 };
 
 // ─────────────────────────────────────────────
@@ -192,6 +197,10 @@ function runScan(filterType, selectedValues) {
         setStatus('Scan error: ' + (resp?.error || 'unknown'));
         return;
       }
+      if (!resp.results) {
+        setStatus('Scan returned no results', 'warning');
+        return;
+      }
 
       state.previousResults = state.rawResults;
       state.rawResults      = resp.results;
@@ -286,6 +295,10 @@ function scanSelectedElement() {
           setStatus('Scan error: ' + (resp?.error || 'unknown'), 'error');
           return;
         }
+        if (!resp.results) {
+          setStatus('Scan returned no results', 'warning');
+          return;
+        }
 
         state.previousResults = state.rawResults;
         state.rawResults      = resp.results;
@@ -315,6 +328,190 @@ function clearElementScope() {
   const targetBar = $('element-target-bar');
   if (targetBar) targetBar.classList.add('hidden');
 }
+
+// ─────────────────────────────────────────────
+// Element Picker
+// ─────────────────────────────────────────────
+function startPicker() {
+  state.pickerActive = true;
+  state.pickerSelector = null;
+  state.pickerScopeSelector = null;
+  state.pickerScopeReason = '';
+  state.pickerScopeLabel = '';
+  updatePickerUI();
+  safeSendMessage({ type: MSG.PICKER_START, tabId: tabId() });
+  setStatus('Picker active — click an element on the page', 'info');
+}
+
+function stopPicker() {
+  state.pickerActive = false;
+  updatePickerUI();
+  safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
+  setStatus('Picker cancelled');
+}
+
+function togglePicker() {
+  if (state.pickerActive) stopPicker();
+  else startPicker();
+}
+
+function onPickerSelected(data) {
+  state.pickerSelector      = data.selector;
+  state.pickerScopeSelector = data.scopeSelector;
+  state.pickerScopeReason   = data.scopeReason || '';
+  state.pickerScopeLabel    = data.scopeLabel || data.scopeSelector;
+  updatePickerUI();
+  setStatus(`Selected: ${data.label || data.selector}`, 'success');
+}
+
+function onPickerScopeChanged(data) {
+  state.pickerScopeSelector = data.scopeSelector;
+  state.pickerScopeReason   = data.scopeReason || '';
+  state.pickerScopeLabel    = data.scopeLabel || data.scopeSelector;
+  updatePickerUI();
+}
+
+function onPickerScan(data) {
+  state.pickerActive = false;
+  updatePickerUI();
+  // Use the scope selector to run an element scan
+  const selector = data.selector;
+  if (!selector) {
+    setStatus('No scope selected for scan', 'warning');
+    return;
+  }
+  runPickerScan(selector, data.label);
+}
+
+function onPickerCancelled() {
+  state.pickerActive        = false;
+  state.pickerSelector      = null;
+  state.pickerScopeSelector = null;
+  state.pickerScopeReason   = '';
+  state.pickerScopeLabel    = '';
+  updatePickerUI();
+  setStatus('Picker cancelled');
+}
+
+function pickerExpandScope() {
+  safeSendMessage({ type: MSG.PICKER_EXPAND_SCOPE, tabId: tabId() });
+}
+
+function pickerReduceScope() {
+  safeSendMessage({ type: MSG.PICKER_REDUCE_SCOPE, tabId: tabId() });
+}
+
+function pickerScanScope() {
+  const selector = state.pickerScopeSelector;
+  if (!selector) return;
+  // Stop picker in content, then scan
+  safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
+  state.pickerActive = false;
+  updatePickerUI();
+  runPickerScan(selector, state.pickerScopeLabel);
+}
+
+function pickerClearScope() {
+  safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
+  onPickerCancelled();
+}
+
+function runPickerScan(selector, label) {
+  state.elementScope = selector;
+  const targetBar = $('element-target-bar');
+  const targetSel = $('element-target-selector');
+  if (targetBar) targetBar.classList.remove('hidden');
+  if (targetSel) targetSel.textContent = selector;
+
+  showLoading(true);
+  $('btn-scan-element').disabled = true;
+  $('btn-export').disabled = true;
+  setStatus(`Scanning scope: ${label || selector}...`);
+
+  const defaultTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
+  safeSendMessage({
+    type: MSG.SCAN_ELEMENT,
+    tabId: tabId(),
+    selector: selector,
+    filterType: 'tag',
+    selectedTags: defaultTags,
+    selectedRuleIds: [],
+  }, (resp) => {
+    try {
+      showLoading(false);
+      $('btn-scan-element').disabled = false;
+
+      if (chrome.runtime.lastError) {
+        setStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+        return;
+      }
+      if (!resp || resp.type === MSG.SCAN_ERROR) {
+        setStatus('Scan error: ' + (resp?.error || 'unknown'), 'error');
+        return;
+      }
+      if (!resp.results) {
+        setStatus('Scan returned no results', 'warning');
+        return;
+      }
+
+      state.previousResults  = state.rawResults;
+      state.rawResults       = resp.results;
+      state.formattedResults = formatResults(resp.results);
+      state.selectedRuleIdx  = -1;
+      state.selectedNodeIdx  = -1;
+      clearHighlights();
+
+      $('btn-export').disabled = false;
+      renderAll();
+      setStatus(`Scope scan complete — ${label || selector} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`, 'success');
+    } catch (e) {
+      showLoading(false);
+      $('btn-scan-element').disabled = false;
+      if (e?.message?.includes('Extension context invalidated')) {
+        setStatus('Extension reloaded — please close and reopen DevTools.');
+      } else {
+        throw e;
+      }
+    }
+  });
+}
+
+function updatePickerUI() {
+  const btn        = $('btn-picker');
+  const scopeBar   = $('picker-scope-bar');
+  const scopeSel   = $('picker-scope-selector');
+  const scopeReason = $('picker-scope-reason');
+
+  // Toggle button
+  if (btn) btn.classList.toggle('picker-active', state.pickerActive);
+
+  // Scope bar visibility
+  if (state.pickerScopeSelector) {
+    scopeBar.classList.remove('hidden');
+    scopeSel.textContent    = state.pickerScopeLabel || state.pickerScopeSelector;
+    scopeReason.textContent = state.pickerScopeReason ? '(' + state.pickerScopeReason + ')' : '';
+  } else {
+    scopeBar.classList.add('hidden');
+  }
+}
+
+// Listen for picker messages from background (relayed from content)
+chrome.runtime.onMessage.addListener((msg) => {
+  switch (msg.type) {
+    case MSG.PICKER_SELECTED:
+      onPickerSelected(msg);
+      break;
+    case MSG.PICKER_SCOPE_CHANGED:
+      onPickerScopeChanged(msg);
+      break;
+    case MSG.PICKER_SCAN:
+      onPickerScan(msg);
+      break;
+    case MSG.PICKER_CANCELLED:
+      onPickerCancelled();
+      break;
+  }
+});
 
 function loadCachedResults() {
   safeSendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tabId() }, (resp) => {
@@ -1089,15 +1286,17 @@ function exportJSON() {
 // Event wiring
 // ─────────────────────────────────────────────
 
-// Remove all highlights when DevTools is closed
-window.addEventListener('beforeunload', () => {
-  clearHighlights();
-});
-
 $('btn-scan').addEventListener('click', openScanModalFlow);
 $('btn-scan-element').addEventListener('click', scanSelectedElement);
 $('btn-clear-element-scope').addEventListener('click', clearElementScope);
 $('btn-export').addEventListener('click', exportJSON);
+
+// Picker
+$('btn-picker').addEventListener('click', togglePicker);
+$('btn-scope-expand').addEventListener('click', pickerExpandScope);
+$('btn-scope-reduce').addEventListener('click', pickerReduceScope);
+$('btn-scope-scan').addEventListener('click', pickerScanScope);
+$('btn-scope-clear').addEventListener('click', pickerClearScope);
 
 $('btn-scan-modal-close').addEventListener('click', closeScanModal);
 $('btn-scan-cancel').addEventListener('click', closeScanModal);
@@ -1250,7 +1449,12 @@ document.addEventListener('keydown', e => {
 // ─────────────────────────────────────────────
 // Cleanup on DevTools close
 // ─────────────────────────────────────────────
-window.addEventListener('beforeunload', () => clearHighlights());
+window.addEventListener('beforeunload', () => {
+  clearHighlights();
+  if (state.pickerActive) {
+    safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
+  }
+});
 
 // ─────────────────────────────────────────────
 // Init
