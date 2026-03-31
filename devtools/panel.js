@@ -63,50 +63,87 @@ function runScan() {
   $('btn-export').disabled = true;
   setStatus('Scanning…');
 
-  chrome.runtime.sendMessage({ type: MSG.SCAN_REQUEST, tabId: tabId() }, (resp) => {
-    showLoading(false);
-    $('btn-scan').disabled = false;
+  safeSendMessage({ type: MSG.SCAN_REQUEST, tabId: tabId() }, (resp) => {
+    try {
+      showLoading(false);
+      $('btn-scan').disabled = false;
 
-    if (chrome.runtime.lastError) {
-      setStatus('Error: ' + chrome.runtime.lastError.message);
-      return;
+      if (chrome.runtime.lastError) {
+        setStatus('Error: ' + chrome.runtime.lastError.message);
+        return;
+      }
+      if (!resp || resp.type === MSG.SCAN_ERROR) {
+        setStatus('Scan error: ' + (resp?.error || 'unknown'));
+        return;
+      }
+
+      state.previousResults = state.rawResults;
+      state.rawResults      = resp.results;
+      state.formattedResults = formatResults(resp.results);
+      state.selectedRuleIdx = -1;
+      state.selectedNodeIdx = -1;
+
+      // Clear old highlights
+      clearHighlights();
+
+      $('btn-export').disabled = false;
+      renderAll();
+      setStatus(`Scan complete — ${resp.results.url || ''} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`);
+    } catch (e) {
+      showLoading(false);
+      $('btn-scan').disabled = false;
+      if (e?.message?.includes('Extension context invalidated')) {
+        setStatus('Extension reloaded — please close and reopen DevTools.');
+      } else {
+        throw e;
+      }
     }
-    if (!resp || resp.type === MSG.SCAN_ERROR) {
-      setStatus('Scan error: ' + (resp?.error || 'unknown'));
-      return;
-    }
-
-    state.previousResults = state.rawResults;
-    state.rawResults      = resp.results;
-    state.formattedResults = formatResults(resp.results);
-    state.selectedRuleIdx = -1;
-    state.selectedNodeIdx = -1;
-
-    // Clear old highlights
-    clearHighlights();
-
-    $('btn-export').disabled = false;
-    renderAll();
-    setStatus(`Scan complete — ${resp.results.url || ''} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`);
   });
 }
 
 function loadCachedResults() {
-  chrome.runtime.sendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tabId() }, (resp) => {
-    if (chrome.runtime.lastError || !resp?.cached?.results) return;
-    state.rawResults       = resp.cached.results;
-    state.formattedResults = formatResults(resp.cached.results);
-    $('btn-export').disabled = false;
-    renderAll();
-    setStatus('Loaded cached results');
+  safeSendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tabId() }, (resp) => {
+    try {
+      if (chrome.runtime.lastError || !resp?.cached?.results) return;
+      state.rawResults       = resp.cached.results;
+      state.formattedResults = formatResults(resp.cached.results);
+      $('btn-export').disabled = false;
+      renderAll();
+      setStatus('Loaded cached results');
+    } catch (e) {
+      if (!e?.message?.includes('Extension context invalidated')) throw e;
+    }
   });
+}
+
+// ─────────────────────────────────────────────
+// Messaging helper — guards against invalidated extension context
+// ─────────────────────────────────────────────
+function safeSendMessage(msg, callback) {
+  if (!chrome.runtime?.id) {
+    setStatus('Extension reloaded — please close and reopen DevTools.');
+    return;
+  }
+  try {
+    if (callback) {
+      chrome.runtime.sendMessage(msg, callback);
+    } else {
+      chrome.runtime.sendMessage(msg);
+    }
+  } catch (e) {
+    if (e.message && e.message.includes('Extension context invalidated')) {
+      setStatus('Extension reloaded — please close and reopen DevTools.');
+    } else {
+      throw e;
+    }
+  }
 }
 
 // ─────────────────────────────────────────────
 // Highlight helpers
 // ─────────────────────────────────────────────
 function highlightSelector(selector, impact, description, help) {
-  chrome.runtime.sendMessage({
+  safeSendMessage({
     type: MSG.HIGHLIGHT_ELEMENT,
     tabId: tabId(), selector, impact, description, help,
   });
@@ -114,11 +151,11 @@ function highlightSelector(selector, impact, description, help) {
 }
 
 function scrollToSelector(selector) {
-  chrome.runtime.sendMessage({ type: MSG.SCROLL_TO_ELEMENT, tabId: tabId(), selector });
+  safeSendMessage({ type: MSG.SCROLL_TO_ELEMENT, tabId: tabId(), selector });
 }
 
 function clearHighlights() {
-  chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tabId() });
+  safeSendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tabId() });
   state.highlightedSelectors.clear();
 }
 
@@ -393,6 +430,12 @@ function exportJSON() {
 // ─────────────────────────────────────────────
 // Event wiring
 // ─────────────────────────────────────────────
+
+// Remove all highlights when DevTools is closed
+window.addEventListener('beforeunload', () => {
+  clearHighlights();
+});
+
 $('btn-scan').addEventListener('click', runScan);
 $('btn-export').addEventListener('click', exportJSON);
 
