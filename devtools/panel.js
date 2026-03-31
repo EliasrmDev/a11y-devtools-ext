@@ -25,6 +25,7 @@ const state = {
   expandedGroups:  new Set(),
   collapsedTagGroups: new Set(),
   highlightedSelectors: new Set(),
+  elementScope: null,
   previousResults: null,   // for compare
 };
 
@@ -214,6 +215,105 @@ function runScan(filterType, selectedValues) {
       }
     }
   });
+}
+
+function getSelectedElementSelector() {
+  return new Promise((resolve) => {
+    chrome.devtools.inspectedWindow.eval(
+      `(function() {
+        var el = $0;
+        if (!el || el === document || el === document.documentElement || el === document.body) return null;
+        var parts = [];
+        while (el && el !== document.body && el !== document.documentElement) {
+          var tag = el.tagName.toLowerCase();
+          if (el.id) { parts.unshift(tag + '#' + el.id); break; }
+          var parent = el.parentElement;
+          if (parent) {
+            var sibs = Array.from(parent.children).filter(function(c) { return c.tagName === el.tagName; });
+            if (sibs.length > 1) {
+              tag += ':nth-of-type(' + (sibs.indexOf(el) + 1) + ')';
+            }
+          }
+          parts.unshift(tag);
+          el = parent;
+        }
+        return parts.join(' > ');
+      })()`,
+      (result, error) => {
+        if (error || !result) resolve(null);
+        else resolve(result);
+      }
+    );
+  });
+}
+
+function scanSelectedElement() {
+  getSelectedElementSelector().then(selector => {
+    if (!selector) {
+      setStatus('Select an element in the Elements panel first ($0).', 'warning');
+      return;
+    }
+
+    state.elementScope = selector;
+    const targetBar = $('element-target-bar');
+    const targetSel = $('element-target-selector');
+    if (targetBar) targetBar.classList.remove('hidden');
+    if (targetSel) targetSel.textContent = selector;
+
+    showLoading(true);
+    $('btn-scan-element').disabled = true;
+    $('btn-export').disabled = true;
+    setStatus(`Scanning element: ${selector}...`);
+
+    const defaultTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
+    safeSendMessage({
+      type: MSG.SCAN_ELEMENT,
+      tabId: tabId(),
+      selector: selector,
+      filterType: 'tag',
+      selectedTags: defaultTags,
+      selectedRuleIds: [],
+    }, (resp) => {
+      try {
+        showLoading(false);
+        $('btn-scan-element').disabled = false;
+
+        if (chrome.runtime.lastError) {
+          setStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+          return;
+        }
+        if (!resp || resp.type === MSG.SCAN_ERROR) {
+          setStatus('Scan error: ' + (resp?.error || 'unknown'), 'error');
+          return;
+        }
+
+        state.previousResults = state.rawResults;
+        state.rawResults      = resp.results;
+        state.formattedResults = formatResults(resp.results);
+        state.selectedRuleIdx = -1;
+        state.selectedNodeIdx = -1;
+        clearHighlights();
+
+        $('btn-export').disabled = false;
+        renderAll();
+        setStatus(`Element scan complete — ${selector} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`, 'success');
+      } catch (e) {
+        showLoading(false);
+        $('btn-scan-element').disabled = false;
+        if (e?.message?.includes('Extension context invalidated')) {
+          setStatus('Extension reloaded — please close and reopen DevTools.');
+        } else {
+          throw e;
+        }
+      }
+    });
+  });
+}
+
+function clearElementScope() {
+  state.elementScope = null;
+  const targetBar = $('element-target-bar');
+  if (targetBar) targetBar.classList.add('hidden');
 }
 
 function loadCachedResults() {
@@ -711,8 +811,11 @@ function highlightSelector(selector, impact, description, help) {
   state.highlightedSelectors.add(selector);
 }
 
-function scrollToSelector(selector) {
-  safeSendMessage({ type: MSG.SCROLL_TO_ELEMENT, tabId: tabId(), selector });
+function inspectInDomTree(selector) {
+  const escaped = selector.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  chrome.devtools.inspectedWindow.eval(
+    `inspect(document.querySelector('${escaped}'))`
+  );
 }
 
 function clearHighlights() {
@@ -808,7 +911,6 @@ function renderIssueList() {
         ni.querySelector('.node-highlight-btn').addEventListener('click', (e) => {
           e.stopPropagation();
           highlightSelector(node.primarySelector, rule.impact, rule.description, rule.help);
-          scrollToSelector(node.primarySelector);
         });
         ni.addEventListener('click', () => selectNode(rIdx, nIdx));
         frag.appendChild(ni);
@@ -856,7 +958,6 @@ function selectNode(rIdx, nIdx) {
   if (node) {
     clearHighlights();
     highlightSelector(node.primarySelector, rule.impact, rule.description, rule.help);
-    scrollToSelector(node.primarySelector);
   }
 
   renderIssueList();
@@ -895,7 +996,7 @@ function renderDetail() {
           <span style="color:var(--c-sub)">#${i+1}</span>
           ${escHtml(node.primarySelector || node.selector)}
           <span style="flex:1"></span>
-          <button class="nd-nav" data-action="scroll" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">↗ Scroll</button>
+          <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">➡ DOM</button>
         </div>
         ${node.html ? `<div class="nd-html">${escHtml(node.html)}</div>` : ''}
         ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary)}</div>` : ''}
@@ -937,9 +1038,9 @@ function renderDetail() {
     });
   });
 
-  // Scroll buttons
-  content.querySelectorAll('[data-action="scroll"]').forEach(btn => {
-    btn.addEventListener('click', () => scrollToSelector(btn.dataset.sel));
+  // Inspect in DOM tree buttons
+  content.querySelectorAll('[data-action="inspect"]').forEach(btn => {
+    btn.addEventListener('click', () => inspectInDomTree(btn.dataset.sel));
   });
 
   // Prev / Next node
@@ -994,6 +1095,8 @@ window.addEventListener('beforeunload', () => {
 });
 
 $('btn-scan').addEventListener('click', openScanModalFlow);
+$('btn-scan-element').addEventListener('click', scanSelectedElement);
+$('btn-clear-element-scope').addEventListener('click', clearElementScope);
 $('btn-export').addEventListener('click', exportJSON);
 
 $('btn-scan-modal-close').addEventListener('click', closeScanModal);
@@ -1143,6 +1246,11 @@ document.addEventListener('keydown', e => {
     selectNode(state.selectedRuleIdx, state.selectedNodeIdx - 1);
   }
 });
+
+// ─────────────────────────────────────────────
+// Cleanup on DevTools close
+// ─────────────────────────────────────────────
+window.addEventListener('beforeunload', () => clearHighlights());
 
 // ─────────────────────────────────────────────
 // Init

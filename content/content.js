@@ -3,6 +3,9 @@
  * Runs in the page's isolated world but shares the DOM.
  */
 
+if (window.__a11yExtContentLoaded) { /* already injected */ } else {
+window.__a11yExtContentLoaded = true;
+
 const OVERLAY_CLASS   = 'a11y-ext-overlay';
 const TOOLTIP_CLASS   = 'a11y-ext-tooltip';
 const ACTIVE_CLASS    = 'a11y-ext-active';
@@ -146,6 +149,10 @@ chrome.runtime.onMessage.addListener((msg) => {
     case 'HIGHLIGHT_ELEMENT':
       createOverlay(msg.selector, msg.impact, msg.description, msg.help);
       activateOverlay(msg.selector);
+      try {
+        const el = document.querySelector(msg.selector);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (_) {}
       break;
 
     case 'UNHIGHLIGHT_ALL':
@@ -161,3 +168,5 @@ chrome.runtime.onMessage.addListener((msg) => {
       break;
   }
 });
+
+} // end __a11yExtContentLoaded guard

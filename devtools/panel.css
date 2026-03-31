@@ -20,7 +20,7 @@
   --c-error:    #f44747;
   --c-primary:  #0e70c0;
   --c-primary-l:#569cd6;
-  --bar-h:      50px;
+  --bar-h:      100px;
   --tab-h:      34px;
   --status-h:   22px;
 }
@@ -128,6 +128,39 @@ html, body {
   border-bottom: 1px solid var(--c-border);
   flex-shrink: 0;
 }
+
+/* ── Element target bar ── */
+.element-target-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  background: var(--c-surface2);
+  border-bottom: 1px solid var(--c-border);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.element-target-label {
+  color: var(--c-sub);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 0.5px;
+}
+.element-target-selector {
+  color: var(--c-primary-l);
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-small {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
 .tab {
   display: flex; align-items: center; gap: 5px;
   padding: 0 14px;

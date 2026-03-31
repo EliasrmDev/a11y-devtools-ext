@@ -27,15 +27,36 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       break;
     }
 
+    case MSG.SCAN_ELEMENT:
+      handleScanElement(msg.tabId, msg.selector, {
+        filterType: msg.filterType,
+        selectedRuleIds: msg.selectedRuleIds,
+        selectedTags: msg.selectedTags,
+      })
+        .then(data => sendResponse({ type: MSG.SCAN_RESULT, ...data }))
+        .catch(err => sendResponse({ type: MSG.SCAN_ERROR, error: err.message }));
+      return true;
+
     case MSG.HIGHLIGHT_ELEMENT:
     case MSG.UNHIGHLIGHT_ALL:
     case MSG.SCROLL_TO_ELEMENT:
-      chrome.tabs.sendMessage(msg.tabId, msg).catch(() => {});
+      ensureContentScript(msg.tabId)
+        .then(() => chrome.tabs.sendMessage(msg.tabId, msg))
+        .catch(() => {});
       sendResponse({ ok: true });
-      break;
+      return true;
   }
   return false;
 });
+
+async function ensureContentScript(tabId) {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: ['content/content.js'],
+    });
+  } catch (_) { /* tab may not be scriptable */ }
+}
 
 async function ensureTabIsScannable(tabId) {
   // Verify tab is accessible
@@ -137,4 +158,66 @@ async function handleScan(tabId, scanSelection = {}) {
   const entry = { results: result, scannedAt: Date.now() };
   scanCache.set(tabId, entry);
   return entry;
+}
+
+async function handleScanElement(tabId, selector, scanSelection = {}) {
+  await ensureTabIsScannable(tabId);
+  await ensureAxeInjected(tabId);
+
+  const selectedRuleIds = Array.isArray(scanSelection.selectedRuleIds)
+    ? scanSelection.selectedRuleIds.filter(id => typeof id === 'string' && id.trim().length > 0)
+    : [];
+  const selectedTags = Array.isArray(scanSelection.selectedTags)
+    ? scanSelection.selectedTags.filter(tag => typeof tag === 'string' && tag.trim().length > 0)
+    : [];
+  const filterType = scanSelection.filterType === 'tag' ? 'tag' : 'rule';
+  const defaultTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
+
+  const runOnly = filterType === 'tag'
+    ? { type: 'tag', values: selectedTags }
+    : { type: 'rule', values: selectedRuleIds };
+
+  if (!runOnly.values.length) {
+    runOnly.type = 'tag';
+    runOnly.values = defaultTags;
+  }
+
+  const runOptions = { reporter: 'v2', runOnly };
+
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    args: [selector, runOptions],
+    func: (sel, options) =>
+      new Promise((resolve, reject) => {
+        if (!window.axe) return reject(new Error('axe-core not loaded'));
+        let target;
+        try { target = document.querySelector(sel); } catch (_) {}
+        if (!target) return reject(new Error('Element not found: ' + sel));
+
+        // Setup axe virtual tree rooted at this element for partial analysis
+        axe.setup(target);
+
+        axe.run(
+          target,
+          options,
+          (err, results) => {
+            // Teardown virtual tree
+            try { axe.teardown(); } catch (_) {}
+            if (err) return reject(err);
+            resolve({
+              violations:   results.violations,
+              passes:       results.passes,
+              incomplete:   results.incomplete,
+              inapplicable: results.inapplicable,
+              timestamp:    new Date().toISOString(),
+              url:          location.href,
+              elementSelector: sel,
+            });
+          }
+        );
+      }),
+  });
+
+  return { results: result, scannedAt: Date.now() };
 }
