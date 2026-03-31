@@ -1194,7 +1194,7 @@ function formatAIResponse(text) {
   let html = escHtml(text);
   // Code blocks: ```lang\n...\n```
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre class="ai-code-block"><code>${code.trim()}</code></pre>`
+    `<pre class="ai-code-block"><button class="ai-copy-btn" title="Copy code">📋</button><code>${code.trim()}</code></pre>`
   );
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
@@ -1398,6 +1398,17 @@ function renderDetail() {
     section.querySelector('.ai-fix-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       suggestAIFix(rule, node, section);
+    });
+    // Copy code buttons (delegated since content is dynamic)
+    section.querySelector('.ai-fix-output').addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('.ai-copy-btn');
+      if (!copyBtn) return;
+      e.stopPropagation();
+      const code = copyBtn.closest('.ai-code-block')?.querySelector('code')?.textContent || '';
+      navigator.clipboard.writeText(code).then(() => {
+        copyBtn.textContent = '✅';
+        setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
+      });
     });
   });
 }

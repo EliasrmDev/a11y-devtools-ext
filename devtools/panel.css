@@ -508,6 +508,7 @@ body {
   font-size: 10px;
 }
 .ai-fix-output pre.ai-code-block {
+  position: relative;
   background: var(--c-surface2);
   border: 1px solid var(--c-border);
   border-radius: 3px;
@@ -518,6 +519,20 @@ body {
   font-size: 10px;
   line-height: 1.4;
 }
+.ai-copy-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 3px;
+  padding: 2px 5px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.ai-code-block:hover .ai-copy-btn { opacity: 1; }
 .ai-fix-output pre.ai-code-block code {
   background: none;
   padding: 0;
