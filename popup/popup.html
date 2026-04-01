@@ -19,7 +19,7 @@
         <circle cx="11" cy="11" r="8" />
         <path d="m21 21-4.35-4.35" />
       </svg>
-      Run Quick Scan
+      <span data-i18n="btn_scan">Run Quick Scan</span>
     </button>
   </header>
 
@@ -27,17 +27,21 @@
     <div class="idle-icon">
       <img src="../icons/icon48.png" alt="a11y DevTools Logo">
     </div>
-    <p class="idle-text">Click <strong>Run Quick Scan</strong> to analyze accessibility</p>
+    <p class="idle-text">
+      <span data-i18n="idle_text_click">Click</span>
+      <strong data-i18n="btn_scan">Run Quick Scan</strong>
+      <span data-i18n="idle_text_analyze">to analyze accessibility</span>
+    </p>
   </div>
 
   <div id="state-loading" class="state hidden">
     <div class="spinner"></div>
-    <p>Analyzing page…</p>
+    <p data-i18n="analyzing">Analyzing page…</p>
   </div>
 
   <div id="state-error" class="state hidden">
     <div class="error-icon">⚠</div>
-    <p id="error-msg">An error occurred.</p>
+    <p id="error-msg" data-i18n="error_default">An error occurred.</p>
   </div>
 
   <div id="state-results" class="state hidden">
@@ -54,29 +58,25 @@
         </div>
       </div>
       <div class="score-breakdown">
-        <div class="bd-row critical"><span class="dot"></span><span class="lbl">Critical</span><span id="cnt-critical"
-            class="cnt">0</span></div>
-        <div class="bd-row serious"><span class="dot"></span><span class="lbl">Serious</span> <span id="cnt-serious"
-            class="cnt">0</span></div>
-        <div class="bd-row moderate"><span class="dot"></span><span class="lbl">Moderate</span><span id="cnt-moderate"
-            class="cnt">0</span></div>
-        <div class="bd-row minor"><span class="dot"></span><span class="lbl">Minor</span> <span id="cnt-minor"
-            class="cnt">0</span></div>
+        <div class="bd-row critical"><span class="dot"></span><span class="lbl" data-i18n="impact_critical">Critical</span><span id="cnt-critical" class="cnt">0</span></div>
+        <div class="bd-row serious"><span class="dot"></span><span class="lbl" data-i18n="impact_serious">Serious</span> <span id="cnt-serious" class="cnt">0</span></div>
+        <div class="bd-row moderate"><span class="dot"></span><span class="lbl" data-i18n="impact_moderate">Moderate</span><span id="cnt-moderate" class="cnt">0</span></div>
+        <div class="bd-row minor"><span class="dot"></span><span class="lbl" data-i18n="impact_minor">Minor</span> <span id="cnt-minor" class="cnt">0</span></div>
       </div>
     </div>
 
     <div class="stats-row">
       <div class="stat-box">
         <span id="stat-violations" class="stat-num">0</span>
-        <span class="stat-lbl">Violations</span>
+        <span class="stat-lbl" data-i18n="stat_violations">Violations</span>
       </div>
       <div class="stat-box">
         <span id="stat-passes" class="stat-num pass">0</span>
-        <span class="stat-lbl">Passes</span>
+        <span class="stat-lbl" data-i18n="stat_passes">Passes</span>
       </div>
       <div class="stat-box">
         <span id="stat-incomplete" class="stat-num warn">0</span>
-        <span class="stat-lbl">Incomplete</span>
+        <span class="stat-lbl" data-i18n="stat_incomplete">Incomplete</span>
       </div>
     </div>
 
@@ -84,30 +84,34 @@
     <div class="time-row" id="scan-time"></div>
 
     <div class="popup-results">
-      <div class="popup-results-title">Results (Violations)</div>
+      <div class="popup-results-title" data-i18n="popup_results_title">Results (Violations)</div>
       <div id="violations-list" class="violations-list"></div>
     </div>
 
     <div class="devtools-guide">
-      <h3>Open DevTools a11y Panel</h3>
+      <h3 data-i18n="open_devtools_title">Open DevTools a11y Panel</h3>
       <div class="guide-content">
         <div class="os-section">
-          <strong>Windows / Linux:</strong>
+          <strong data-i18n="devtools_windows">Windows / Linux:</strong>
           <code>F12</code> or <code>Ctrl + Shift + I</code>
         </div>
         <div class="os-section">
-          <strong>macOS:</strong>
+          <strong data-i18n="devtools_mac">macOS:</strong>
           <code>Cmd + Option + I</code>
         </div>
-        <p class="guide-note">Then navigate to the <strong>a11y</strong> tab in the DevTools panel.</p>
+        <p class="guide-note">
+          <span data-i18n="devtools_note_before">Then navigate to the</span>
+          <strong>a11y</strong>
+          <span data-i18n="devtools_note_after">tab in the DevTools panel.</span>
+        </p>
       </div>
     </div>
   </div>
 
+  <script src="../i18n/i18n.js"></script>
   <script src="../shared/messaging.js"></script>
   <script src="../core/scoring.js"></script>
   <script src="../core/formatter.js"></script>
   <script src="popup.js"></script>
 </body>
-
 </html>

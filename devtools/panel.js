@@ -45,54 +45,54 @@ const tabId = () => chrome.devtools.inspectedWindow.tabId;
 
 const RECOMMENDED_PRESETS = [
   {
-    id: 'wcag-minimo-a',
-    name: 'WCAG Minimo A',
-    description: 'Cobertura base de cumplimiento A',
+    id: 'wcag-minimum-a',
+    nameKey: 'preset_wcag_a_name',
+    descKey: 'preset_wcag_a_desc',
     checked: false,
     usageLevel: 'medium',
     filterType: 'tag',
     values: ['wcag2a', 'wcag21a'],
   },
   {
-    id: 'wcag-recomendado-aa',
-    name: 'WCAG Recomendado AA',
-    description: 'Combinacion recomendada para la mayoria de productos',
+    id: 'wcag-recommended-aa',
+    nameKey: 'preset_wcag_aa_name',
+    descKey: 'preset_wcag_aa_desc',
     checked: false,
     usageLevel: 'medium',
     filterType: 'tag',
     values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'],
   },
   {
-    id: 'cumplimiento-y-buenas-practicas',
-    name: 'Cumplimiento y Buenas Practicas',
-    description: 'AA mas best-practice para calidad extendida',
+    id: 'compliance-and-best-practices',
+    nameKey: 'preset_compliance_name',
+    descKey: 'preset_compliance_desc',
     checked: true,
     usageLevel: 'top',
     filterType: 'tag',
     values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'],
   },
   {
-    id: 'teclado-y-foco',
-    name: 'Teclado y Foco',
-    description: 'Navegacion por teclado y estados de foco',
+    id: 'keyboard-and-focus',
+    nameKey: 'preset_keyboard_name',
+    descKey: 'preset_keyboard_desc',
     checked: false,
     usageLevel: 'low',
     filterType: 'tag',
     values: ['cat.keyboard'],
   },
   {
-    id: 'formularios-y-nombre-rol-valor',
-    name: 'Formularios y Etiquetas',
-    description: 'Errores de formularios, labels y nombre/rol/valor',
+    id: 'forms-and-labels',
+    nameKey: 'preset_forms_name',
+    descKey: 'preset_forms_desc',
     checked: false,
     usageLevel: 'medium',
     filterType: 'tag',
     values: ['cat.forms', 'cat.name-role-value'],
   },
   {
-    id: 'color-y-contraste',
-    name: 'Color y Contraste',
-    description: 'Revision centrada en color, contraste y senales visuales',
+    id: 'color-and-contrast',
+    nameKey: 'preset_color_name',
+    descKey: 'preset_color_desc',
     checked: false,
     usageLevel: 'low',
     filterType: 'tag',
@@ -144,7 +144,8 @@ function inferStatusTone(msg) {
 function setStatus(msg, tone) {
   const statusEl = $('statusbar');
   if (!statusEl) return;
-  statusEl.textContent = msg;
+  const textEl = $('status-text');
+  (textEl || statusEl).textContent = msg;
   const statusTone = tone || inferStatusTone(msg);
   statusEl.classList.remove('status-info', 'status-success', 'status-warning', 'status-error');
   statusEl.classList.add(`status-${statusTone}`);
@@ -156,7 +157,7 @@ function showLoading(show) {
     if (!overlay) {
       overlay = document.createElement('div');
       overlay.className = 'loading-overlay';
-      overlay.innerHTML = '<div class="spinner"></div><span>Analyzing page…</span>';
+      overlay.innerHTML = `<div class="spinner"></div><span>${i18n.t('analyzing')}</span>`;
       document.body.appendChild(overlay);
     }
   } else {
@@ -184,14 +185,14 @@ function runScan(filterType, selectedValues) {
   const mode = filterType === 'tag' ? 'tag' : 'rule';
   const selected = Array.isArray(selectedValues) ? selectedValues : [];
   if (!selected.length) {
-    setStatus(`Select at least one ${mode === 'tag' ? 'tag' : 'rule'} before scanning.`, 'warning');
+    setStatus(i18n.t(mode === 'tag' ? 'select_min_tag' : 'select_min_rule'), 'warning');
     return;
   }
 
   showLoading(true);
   $('btn-scan').disabled = true;
   $('btn-export').disabled = true;
-  setStatus(`Scanning ${selected.length} ${mode}${selected.length !== 1 ? 's' : ''}...`);
+  setStatus(i18n.t(mode === 'tag' ? 'scanning_n_tags' : 'scanning_n_rules', { count: selected.length }));
 
   state.lastScanConfig = {
     filterType: mode,
@@ -209,15 +210,15 @@ function runScan(filterType, selectedValues) {
       $('btn-scan').disabled = false;
 
       if (chrome.runtime.lastError) {
-        setStatus('Error: ' + chrome.runtime.lastError.message);
+        setStatus(i18n.t('runtime_error', { message: chrome.runtime.lastError.message }));
         return;
       }
       if (!resp || resp.type === MSG.SCAN_ERROR) {
-        setStatus('Scan error: ' + (resp?.error || 'unknown'));
+        setStatus(i18n.t('scan_error', { message: resp?.error || 'unknown' }));
         return;
       }
       if (!resp.results) {
-        setStatus('Scan returned no results', 'warning');
+        setStatus(i18n.t('scan_no_results'), 'warning');
         return;
       }
 
@@ -232,13 +233,13 @@ function runScan(filterType, selectedValues) {
 
       $('btn-export').disabled = false;
       renderAll();
-      setStatus(`Scan complete — ${resp.results.url || ''} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`);
+      setStatus(i18n.t('scan_complete', { url: resp.results.url || '', time: new Date(resp.results.timestamp).toLocaleTimeString() }));
       updateScanTargetBar('Full page');
     } catch (e) {
       showLoading(false);
       $('btn-scan').disabled = false;
       if (e?.message?.includes('Extension context invalidated')) {
-        setStatus('Extension reloaded — please close and reopen DevTools.');
+        setStatus(i18n.t('extension_reloaded'));
       } else {
         throw e;
       }
@@ -287,14 +288,14 @@ function startPicker() {
   state.pickerScopeLabel = '';
   updatePickerUI();
   safeSendMessage({ type: MSG.PICKER_START, tabId: tabId() });
-  setStatus('Picker active — click an element on the page', 'info');
+  setStatus(i18n.t('picker_active_msg'), 'info');
 }
 
 function stopPicker() {
   state.pickerActive = false;
   updatePickerUI();
   safeSendMessage({ type: MSG.PICKER_STOP, tabId: tabId() });
-  setStatus('Picker cancelled');
+  setStatus(i18n.t('picker_cancelled'));
 }
 
 function togglePicker() {
@@ -309,7 +310,7 @@ function onPickerSelected(data) {
   state.pickerScopeReason   = data.scopeReason || '';
   state.pickerScopeLabel    = data.scopeLabel || data.scopeSelector;
   updatePickerUI();
-  setStatus(`Selected: ${data.label || data.selector}`, 'success');
+  setStatus(i18n.t('picker_selected', { label: data.label || data.selector }), 'success');
 }
 
 function onPickerScopeChanged(data) {
@@ -325,7 +326,7 @@ function onPickerScan(data) {
   // Use the scope selector to run an element scan
   const selector = data.selector;
   if (!selector) {
-    setStatus('No scope selected for scan', 'warning');
+    setStatus(i18n.t('no_scope_selected'), 'warning');
     return;
   }
   runPickerScan(selector, data.label);
@@ -338,7 +339,7 @@ function onPickerCancelled() {
   state.pickerScopeReason   = '';
   state.pickerScopeLabel    = '';
   updatePickerUI();
-  setStatus('Picker cancelled');
+  setStatus(i18n.t('picker_cancelled'));
 }
 
 function pickerScanScope() {
@@ -370,7 +371,7 @@ function runPickerScan(selector, label) {
 
   showLoading(true);
   $('btn-export').disabled = true;
-  setStatus(`Scanning scope: ${label || selector}...`);
+  setStatus(i18n.t('scanning_scope', { label: label || selector }));
 
   const defaultTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
   safeSendMessage({
@@ -385,15 +386,15 @@ function runPickerScan(selector, label) {
       showLoading(false);
 
       if (chrome.runtime.lastError) {
-        setStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+        setStatus(i18n.t('runtime_error', { message: chrome.runtime.lastError.message }), 'error');
         return;
       }
       if (!resp || resp.type === MSG.SCAN_ERROR) {
-        setStatus('Scan error: ' + (resp?.error || 'unknown'), 'error');
+        setStatus(i18n.t('scan_error', { message: resp?.error || 'unknown' }), 'error');
         return;
       }
       if (!resp.results) {
-        setStatus('Scan returned no results', 'warning');
+        setStatus(i18n.t('scan_no_results'), 'warning');
         return;
       }
 
@@ -406,11 +407,11 @@ function runPickerScan(selector, label) {
 
       $('btn-export').disabled = false;
       renderAll();
-      setStatus(`Scope scan complete — ${label || selector} at ${new Date(resp.results.timestamp).toLocaleTimeString()}`, 'success');
+      setStatus(i18n.t('scope_scan_complete', { label: label || selector, time: new Date(resp.results.timestamp).toLocaleTimeString() }), 'success');
     } catch (e) {
       showLoading(false);
       if (e?.message?.includes('Extension context invalidated')) {
-        setStatus('Extension reloaded — please close and reopen DevTools.');
+        setStatus(i18n.t('extension_reloaded'));
       } else {
         throw e;
       }
@@ -467,7 +468,7 @@ chrome.runtime.onMessage.addListener((msg) => {
       if (msg.tabId !== tabId() || !msg.results) break;
       applyIncomingResults(
         msg.results,
-        `Scan synced — ${msg.results.url || ''} at ${new Date(msg.results.timestamp).toLocaleTimeString()}`
+        i18n.t('scan_synced', { url: msg.results.url || '', time: new Date(msg.results.timestamp).toLocaleTimeString() })
       );
       if (msg.scanTarget === 'full-page') {
         updateScanTargetBar('Full page');
@@ -495,7 +496,7 @@ function loadCachedResults() {
   safeSendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tabId() }, (resp) => {
     try {
       if (chrome.runtime.lastError || !resp?.cached?.results) return;
-      applyIncomingResults(resp.cached.results, 'Loaded cached results');
+      applyIncomingResults(resp.cached.results, i18n.t('loaded_cached'));
     } catch (e) {
       if (!e?.message?.includes('Extension context invalidated')) throw e;
     }
@@ -578,8 +579,11 @@ function getVisibleItems() {
 
 function updateRuleSelectionCount() {
   const selected = getSelectedSet().size;
-  const label = (!state.customMode || state.scanFilterType === 'tag') ? 'tag' : 'rule';
-  $('rules-count').textContent = `${selected} ${label}${selected !== 1 ? 's' : ''} selected`;
+  const isTag = !state.customMode || state.scanFilterType === 'tag';
+  const countKey = isTag
+    ? (selected === 1 ? 'count_tag_selected' : 'count_tags_selected')
+    : (selected === 1 ? 'count_rule_selected' : 'count_rules_selected');
+  $('rules-count').textContent = i18n.t(countKey, { count: selected });
   $('btn-scan-run-selected').disabled = selected === 0;
 }
 
@@ -594,7 +598,7 @@ function updateModalControlsForFilterType() {
   if (!titleEl || !controlsEl || !rulesListEl || !rulesSearchEl) return;
 
   if (!state.customMode) {
-    titleEl.textContent = 'Select Presets To Scan';
+    titleEl.textContent = i18n.t('modal_select_presets');
     controlsEl.classList.add('hidden');
     rulesListEl.classList.add('hidden');
     if (backBtnEl) backBtnEl.classList.add('hidden');
@@ -604,13 +608,13 @@ function updateModalControlsForFilterType() {
   }
 
   const byTagMode = state.scanFilterType === 'tag';
-  titleEl.textContent = byTagMode ? 'Custom: Select Tags To Scan' : 'Custom: Select Rules To Scan';
+  titleEl.textContent = i18n.t(byTagMode ? 'modal_custom_tags' : 'modal_custom_rules');
   controlsEl.classList.remove('hidden');
   rulesListEl.classList.remove('hidden');
   if (backBtnEl) backBtnEl.classList.remove('hidden');
   if (customBtnEl) customBtnEl.classList.add('hidden');
   if (panelEl) panelEl.classList.add('custom-mode');
-  rulesSearchEl.placeholder = byTagMode ? 'Search tags...' : 'Search rules or tags...';
+  rulesSearchEl.placeholder = i18n.t(byTagMode ? 'search_tags_placeholder' : 'search_rules_placeholder');
 }
 
 function renderPresetOptions() {
@@ -638,8 +642,8 @@ function renderPresetOptions() {
         <label class="preset-option preset-usage-${escHtml(level)}">
           <input type="checkbox" data-preset-id="${escHtml(preset.id)}" ${checked}>
           <span class="preset-meta">
-            <span class="preset-name">${escHtml(preset.name)}</span>
-            <span class="preset-desc">${escHtml(preset.description)}</span>
+            <span class="preset-name">${escHtml(i18n.t(preset.nameKey))}</span>
+            <span class="preset-desc">${escHtml(i18n.t(preset.descKey))}</span>
           </span>
         </label>
       `;
@@ -687,24 +691,24 @@ function applySelectedPresets() {
   targetValues.forEach(value => state.selectedTags.add(value));
   state.customExtraTags.forEach(tag => state.selectedTags.add(tag));
 
-  const names = selectedPresets.map(preset => preset.name).join(' + ');
+  const names = selectedPresets.map(preset => i18n.t(preset.nameKey)).join(' + ');
   const extraCount = state.customExtraTags.size;
   const extraLabel = extraCount > 0 ? ` + ${extraCount} custom tag${extraCount !== 1 ? 's' : ''}` : '';
-  $('preset-help').textContent = (names || 'Choose one or more presets') + extraLabel;
+  $('preset-help').textContent = (names || i18n.t('choose_one_preset')) + extraLabel;
   updateRuleSelectionCount();
   renderRulesModal();
 
   if (!selectedPresets.length && !extraCount) {
-    setStatus('Select at least one preset, or choose Custom.', 'warning');
+    setStatus(i18n.t('select_min_preset'), 'warning');
     return;
   }
 
   if (!targetValues.size && !extraCount) {
-    setStatus('Selected presets do not match tags available in this page.', 'warning');
+    setStatus(i18n.t('no_matching_preset_tags'), 'warning');
     return;
   }
 
-  setStatus(`Preset combo applied (${selectedPresets.length})${extraLabel}`, 'success');
+  setStatus(i18n.t('preset_applied', { count: selectedPresets.length }) + extraLabel, 'success');
 }
 
 function enterCustomMode() {
@@ -740,7 +744,7 @@ function renderRulesModal() {
   const items = getVisibleItems();
 
   if (!items.length) {
-    list.innerHTML = `<div class="rules-empty">No ${state.scanFilterType === 'tag' ? 'tags' : 'rules'} match current filters.</div>`;
+    list.innerHTML = `<div class="rules-empty">${i18n.t(state.scanFilterType === 'tag' ? 'no_tags_match' : 'no_rules_match')}</div>`;
     updateRuleSelectionCount();
     return;
   }
@@ -918,7 +922,7 @@ function openScanModalFlow() {
   }
 
   $('btn-scan').disabled = true;
-  setStatus('Loading axe rules...');
+  setStatus(i18n.t('loading_rules_msg'));
   fetchAxeRules()
     .then(({ rules, tags }) => {
       state.availableRules = rules.sort((a, b) => a.id.localeCompare(b.id));
@@ -932,7 +936,7 @@ function openScanModalFlow() {
 
       const tagFilter = $('rules-tag-filter');
       const grouped = groupTags(state.availableTags);
-      let tagFilterHtml = '<option value="">All tags</option>';
+      let tagFilterHtml = `<option value="">${i18n.t('all_tags_option')}</option>`;
       for (const [groupId, group] of grouped) {
         if (group.tags.length === 1) {
           tagFilterHtml += `<option value="${escHtml(group.tags[0])}">${escHtml(group.tags[0])}</option>`;
@@ -952,11 +956,11 @@ function openScanModalFlow() {
       updateModalControlsForFilterType();
       renderPresetOptions();
 
-      setStatus(`Loaded ${state.availableRules.length} axe rules`, 'success');
+      setStatus(i18n.t('loaded_rules_count', { count: state.availableRules.length }), 'success');
       openScanModal();
     })
     .catch(err => {
-      setStatus('Error loading rules: ' + err.message, 'error');
+      setStatus(i18n.t('error_loading_rules', { message: err.message }), 'error');
     })
     .finally(() => {
       $('btn-scan').disabled = false;
@@ -968,7 +972,7 @@ function openScanModalFlow() {
 // ─────────────────────────────────────────────
 function safeSendMessage(msg, callback) {
   if (!chrome.runtime?.id) {
-    setStatus('Extension reloaded — please close and reopen DevTools.');
+    setStatus(i18n.t('extension_reloaded'));
     return;
   }
   try {
@@ -979,7 +983,7 @@ function safeSendMessage(msg, callback) {
     }
   } catch (e) {
     if (e.message && e.message.includes('Extension context invalidated')) {
-      setStatus('Extension reloaded — please close and reopen DevTools.');
+      setStatus(i18n.t('extension_reloaded'));
     } else {
       throw e;
     }
@@ -1056,7 +1060,7 @@ function renderIssueList() {
     list.innerHTML = '';
     empty.style.display = state.formattedResults ? 'flex' : 'flex';
     if (state.formattedResults && rules.length === 0) {
-      empty.innerHTML = '<div class="empty-icon">✓</div><p>No issues found for current filter</p>';
+      empty.innerHTML = `<div class="empty-icon">✓</div><p>${i18n.t('no_issues_filter')}</p>`;
     }
     return;
   }
@@ -1077,7 +1081,7 @@ function renderIssueList() {
       <div class="issue-body">
         <div class="issue-id">${escHtml(rule.id)}</div>
         <div class="issue-desc" title="${escHtml(rule.description)}">${escHtml(rule.description)}</div>
-        <div class="issue-meta">${rule.nodeCount} element${rule.nodeCount !== 1 ? 's' : ''}</div>
+        <div class="issue-meta">${i18n.t(rule.nodeCount !== 1 ? 'issue_elements_many' : 'issue_elements_one', { count: rule.nodeCount })}</div>
       </div>
       <span style="font-size:9px;color:var(--c-sub);margin-left:4px">${isExpanded ? '▾' : '▸'}</span>
     `;
@@ -1186,9 +1190,9 @@ function suggestAIFix(rule, node, containerEl) {
   }
 
   btnEl.disabled = true;
-  btnEl.textContent = '⏳ Generating…';
+  btnEl.textContent = i18n.t('ai_generating');
   outputEl.classList.remove('hidden');
-  outputEl.textContent = 'Waiting for AI model…';
+  outputEl.textContent = i18n.t('ai_waiting');
   _startAIFix(rule, node, containerEl, outputEl, btnEl);
 }
 
@@ -1204,34 +1208,34 @@ function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
     if (msg.type === 'downloading') {
       const pct = msg.total > 0 ? Math.round((msg.loaded / msg.total) * 100) : 0;
       outputEl.innerHTML = `<div class="ai-download-progress">
-        <span>Downloading AI model… ${pct}%</span>
+        <span>${i18n.t('ai_downloading').replace('⏳ ', '')} ${pct}%</span>
         <div class="ai-progress-bar"><div class="ai-progress-fill" style="width:${pct}%"></div></div>
       </div>`;
-      btnEl.textContent = '⏳ Downloading…';
+      btnEl.textContent = i18n.t('ai_downloading');
     } else if (msg.type === 'status') {
       outputEl.innerHTML = logHtml + `<div class="ai-fix-status"><span class="ai-status-spinner"></span> ${escHtml(msg.message)}</div>`;
-      btnEl.textContent = '⏳ Working…';
+      btnEl.textContent = i18n.t('ai_working');
     } else if (msg.type === 'chunk') {
       outputEl.innerHTML = logHtml + `<div class="ai-fix-preview">${formatAIResponse(msg.text)}</div>`;
-      btnEl.textContent = '⏳ Generating…';
+      btnEl.textContent = i18n.t('ai_generating');
     } else if (msg.type === 'result') {
-      const disclaimer = '<div class="ai-fix-disclaimer">⚠ This is only a suggestion/example. Links are for reference only. The solution may not be correct for your context. Always review and test before applying.</div>';
+      const disclaimer = `<div class="ai-fix-disclaimer">${escHtml(i18n.t('ai_disclaimer'))}</div>`;
       outputEl.innerHTML = logHtml + disclaimer + formatAIResponse(msg.text);
     } else if (msg.type === 'done') {
       outputEl.dataset.loaded = 'true';
-      btnEl.textContent = '🤖 Suggest Fix';
+      btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
       try { port.disconnect(); } catch (_) {}
     } else if (msg.type === 'error') {
       if (msg.error === 'not-available') {
         outputEl.innerHTML = `<div class="ai-fix-error">
-          <strong>Chrome Built-in AI not available.</strong><br>
+          <strong>${escHtml(i18n.t('ai_not_available'))}</strong><br>
           <span>Enable <code>chrome://flags/#prompt-api-for-gemini-nano</code> and <code>chrome://flags/#optimization-guide-on-device-model</code>, then restart Chrome.</span>
         </div>`;
       } else {
-        outputEl.innerHTML = `<div class="ai-fix-error">Error: ${escHtml(msg.error)}</div>`;
+        outputEl.innerHTML = `<div class="ai-fix-error">${i18n.t('runtime_error', { message: escHtml(msg.error) })}</div>`;
       }
-      btnEl.textContent = '🤖 Suggest Fix';
+      btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
       try { port.disconnect(); } catch (_) {}
     }
@@ -1239,8 +1243,8 @@ function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
 
   port.onDisconnect.addListener(() => {
     if (chrome.runtime.lastError) {
-      outputEl.innerHTML = `<div class="ai-fix-error">Error: ${escHtml(chrome.runtime.lastError.message)}</div>`;
-      btnEl.textContent = '🤖 Suggest Fix';
+      outputEl.innerHTML = `<div class="ai-fix-error">${i18n.t('runtime_error', { message: escHtml(chrome.runtime.lastError.message) })}</div>`;
+      btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
     }
   });
@@ -1253,7 +1257,7 @@ function formatAIResponse(text) {
   let html = escHtml(text);
   // Code blocks: ```lang\n...\n```
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre class="ai-code-block"><button class="ai-copy-btn" title="Copy code">📋</button><code>${code.trim()}</code></pre>`
+    `<pre class="ai-code-block"><button class="ai-copy-btn" title="${i18n.t('ai_copy_code')}">📋</button><code>${code.trim()}</code></pre>`
   );
   // Markdown links: [text](url) → <a href="url" target="_blank">text</a>
   html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
@@ -1286,12 +1290,12 @@ function renderChecksSection(node) {
 
       const relHtml = check.relatedNodes.length
         ? `<div class="check-related">
-            <span class="check-related-label">Related elements:</span>
+            <span class="check-related-label">${i18n.t('detail_related_elements')}</span>
             ${check.relatedNodes.map(rn => `
               <div class="check-related-node">
                 <code class="check-related-sel" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.target)}</code>
                 <span style="flex:1"></span>
-                <button class="nd-inspect-btn" data-action="inspect" data-sel="${escHtml(rn.target)}" title="Inspect in DOM">➡ DOM</button>
+                <button class="nd-inspect-btn" data-action="inspect" data-sel="${escHtml(rn.target)}" title="Inspect in DOM">${i18n.t('detail_inspect_dom')}</button>
                 ${rn.html ? `<div class="check-related-html" data-hl-sel="${escHtml(rn.target)}" title="Click to highlight">${escHtml(rn.html)}</div>` : ''}
               </div>
             `).join('')}
@@ -1314,7 +1318,7 @@ function renderChecksSection(node) {
 
     return `
       <div class="checks-group">
-        <div class="checks-group-label" style="border-left-color:${groupColor}">${escHtml(group.label)}</div>
+        <div class="checks-group-label" style="border-left-color:${groupColor}">${escHtml(i18n.t(group.labelKey) || group.label)}</div>
         ${checksHtml}
       </div>`;
   }).join('');
@@ -1369,13 +1373,13 @@ function renderDetail() {
           <span style="color:var(--c-sub)">#${i+1}</span>
           <button class="nd-hl-btn" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.primarySelector || node.selector)}</button>
           <span style="flex:1"></span>
-          <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">➡ DOM</button>
+          <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">${i18n.t('detail_inspect_dom')}</button>
         </div>
         ${node.html ? `<div class="nd-html" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.html)}</div>` : ''}
         ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary)}</div>` : ''}
         ${isActive ? renderChecksSection(node) : ''}
         ${isActive ? `<div class="ai-fix-section" data-node-idx="${i}">
-          <button class="ai-fix-btn">🤖 Suggest Fix</button>
+          <button class="ai-fix-btn">${i18n.t('ai_suggest_fix')}</button>
           <div class="ai-fix-output hidden"></div>
         </div>` : ''}
       </div>`;
@@ -1386,7 +1390,7 @@ function renderDetail() {
       <div class="detail-rule-id">
         ${impactBadge(rule.impact)}
         <code>${escHtml(rule.id)}</code>
-        ${rule.helpUrl ? `<a class="detail-link" href="${escHtml(rule.helpUrl)}" target="_blank">Docs ↗</a>` : ''}
+        ${rule.helpUrl ? `<a class="detail-link" href="${escHtml(rule.helpUrl)}" target="_blank">${i18n.t('detail_docs_link')}</a>` : ''}
       </div>
       <div class="detail-title">${escHtml(rule.description)}</div>
       <div class="detail-help">${escHtml(rule.help)}</div>
@@ -1395,16 +1399,16 @@ function renderDetail() {
 
     ${rule.nodes.length > 0 ? `
     <div class="detail-section">
-      <div class="detail-section-title">Elements (${rule.nodes.length})</div>
+      <div class="detail-section-title">${i18n.t('detail_elements_title', { count: rule.nodes.length })}</div>
       <div class="nd-nav" style="margin-bottom:6px;justify-content:flex-start;gap:4px;">
-        <button id="btn-prev-node" ${activeNodeIdx === 0 ? 'disabled' : ''}>◀ Prev</button>
+        <button id="btn-prev-node" ${activeNodeIdx === 0 ? 'disabled' : ''}>${i18n.t('detail_btn_prev')}</button>
         <span class="nav-position">${activeNodeIdx+1} / ${rule.nodes.length}</span>
-        <button id="btn-next-node" ${activeNodeIdx === rule.nodes.length-1 ? 'disabled' : ''}>Next ▶</button>
-        <button id="btn-highlight-all" style="margin-left:6px">Highlight All</button>
-        <button id="btn-clear-hl">Clear</button>
+        <button id="btn-next-node" ${activeNodeIdx === rule.nodes.length-1 ? 'disabled' : ''}>${i18n.t('detail_btn_next')}</button>
+        <button id="btn-highlight-all" style="margin-left:6px">${i18n.t('detail_btn_highlight_all')}</button>
+        <button id="btn-clear-hl">${i18n.t('detail_btn_clear_hl')}</button>
       </div>
       ${nodesHtml}
-    </div>` : '<div class="detail-section"><div class="detail-section-title">No elements</div></div>'}
+    </div>` : `<div class="detail-section"><div class="detail-section-title">${i18n.t('detail_no_elements')}</div></div>`}
   `;
 
   // Node click → select
@@ -1705,6 +1709,20 @@ window.addEventListener('beforeunload', () => {
 });
 
 // ─────────────────────────────────────────────
-// Init
+// Init — bootstrap i18n, then apply DOM translations and load cached results
 // ─────────────────────────────────────────────
-loadCachedResults();
+(async () => {
+  await i18n.initI18n();
+  i18n.applyDOM();
+
+  const langSelect = $('lang-select');
+  if (langSelect) {
+    langSelect.value = i18n.getLang();
+    langSelect.addEventListener('change', async (e) => {
+      await i18n.setLang(e.target.value);
+      location.reload();
+    });
+  }
+
+  loadCachedResults();
+})();

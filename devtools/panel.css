@@ -761,7 +761,7 @@ body {
 /* ── Statusbar ── */
 .statusbar {
   height: var(--status-h);
-  display: flex; align-items: center;
+  display: flex; align-items: center; justify-content: space-between;
   padding: 0 10px;
   font-size: 11px;
   color: var(--c-info);
@@ -769,6 +769,13 @@ body {
   border-top: 1px solid var(--c-border);
   flex-shrink: 0;
 }
+.lang-select {
+  padding: 1px 4px;
+  font-size: 10px;
+  cursor: pointer;
+  opacity: .6;
+}
+.lang-select:hover { opacity: 1; }
 .statusbar.status-info { color: var(--c-info); }
 .statusbar.status-success { color: var(--c-success); }
 .statusbar.status-warning { color: var(--c-warn); }

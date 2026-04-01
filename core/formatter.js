@@ -70,11 +70,11 @@ function formatChecks(node) {
   });
 
   if (node.any && node.any.length)
-    groups.push({ type: 'any', label: 'Must fix at least one', checks: node.any.map(mapCheck) });
+    groups.push({ type: 'any', labelKey: 'must_fix_one', label: 'Must fix at least one', checks: node.any.map(mapCheck) });
   if (node.all && node.all.length)
-    groups.push({ type: 'all', label: 'Must fix all', checks: node.all.map(mapCheck) });
+    groups.push({ type: 'all', labelKey: 'must_fix_all', label: 'Must fix all', checks: node.all.map(mapCheck) });
   if (node.none && node.none.length)
-    groups.push({ type: 'none', label: 'Must not have', checks: node.none.map(mapCheck) });
+    groups.push({ type: 'none', labelKey: 'must_not_have', label: 'Must not have', checks: node.none.map(mapCheck) });
 
   return groups;
 }

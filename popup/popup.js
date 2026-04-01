@@ -52,7 +52,7 @@ async function highlightSelector(selector, impact, description, help) {
 
 async function runScan() {
   const tab = await getActiveTab();
-  if (!tab) return showError('No active tab found.');
+  if (!tab) return showError(i18n.t('no_active_tab'));
 
   $('btn-scan').disabled = true;
   showState('loading');
@@ -60,7 +60,7 @@ async function runScan() {
   chrome.runtime.sendMessage({ type: MSG.SCAN_REQUEST, tabId: tab.id }, (resp) => {
     $('btn-scan').disabled = false;
     if (chrome.runtime.lastError) return showError(chrome.runtime.lastError.message);
-    if (!resp || resp.type === MSG.SCAN_ERROR) return showError(resp?.error || 'Scan failed.');
+    if (!resp || resp.type === MSG.SCAN_ERROR) return showError(resp?.error || i18n.t('scan_failed'));
     renderResults(resp.results);
   });
 }
@@ -99,7 +99,7 @@ function renderResults(results) {
   // Violations list (similar to DevTools list, only violations)
   const listEl = $('violations-list');
   if (formatted.violations.length === 0) {
-    listEl.innerHTML = '<div class="viol-empty">No violations found.</div>';
+    listEl.innerHTML = `<div class="viol-empty">${i18n.t('no_violations')}</div>`;
     listEl.onclick = null;
   } else {
     listEl.innerHTML = formatted.violations.map((rule, idx) => `
@@ -155,8 +155,13 @@ function showError(msg) {
   showState('error');
 }
 
-// Try to load cached results on popup open
-async function init() {
+// Bootstrap: init i18n, apply DOM translations, then load cached results
+(async () => {
+  await i18n.initI18n();
+  i18n.applyDOM();
+
+  $('btn-scan').addEventListener('click', runScan);
+
   const tab = await getActiveTab();
   if (!tab) return;
 
@@ -164,7 +169,4 @@ async function init() {
     if (chrome.runtime.lastError) return;
     if (resp?.cached?.results) renderResults(resp.cached.results);
   });
-}
-
-$('btn-scan').addEventListener('click', runScan);
-init();
+})();

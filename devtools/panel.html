@@ -19,46 +19,46 @@
         <line x1="4" y1="18" x2="20" y2="18" />
         <circle cx="11" cy="18" r="2" />
       </svg>
-      Setup Scan
+      <span data-i18n="btn_setup_scan">Setup Scan</span>
     </button>
-    <button id="btn-picker" class="btn" title="Pick an element from the page to scan">
+    <button id="btn-picker" class="btn" data-i18n-title="btn_pick_element_title" title="Pick an element from the page to scan">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 3l14 8-6 2-2 6z"/><path d="M14 14l4 4"/></svg>
-      Pick Element
+      <span data-i18n="btn_pick_element">Pick Element</span>
     </button>
     <button id="btn-export" class="btn" disabled>
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      Export JSON
+      <span data-i18n="btn_export_json">Export JSON</span>
     </button>
   </div>
 
   <div class="topbar-right">
     <div class="score-and-filter">
       <div class="score-chip">
-        <span class="score-chip-label">Score</span>
+        <span class="score-chip-label" data-i18n="score_label">Score</span>
         <span id="score-display" class="score-chip-value">—</span>
         <span id="grade-display" class="score-chip-grade"></span>
       </div>
-      <input id="search" type="search" placeholder="Search issues…" class="search-input">
+      <input id="search" type="search" data-i18n-placeholder="search_issues_placeholder" placeholder="Search issues…" class="search-input">
       <select id="filter-impact" class="select">
-        <option value="">All impacts</option>
-        <option value="critical">Critical</option>
-        <option value="serious">Serious</option>
-        <option value="moderate">Moderate</option>
-        <option value="minor">Minor</option>
+        <option value="" data-i18n="filter_all_impacts">All impacts</option>
+        <option value="critical" data-i18n="impact_critical">Critical</option>
+        <option value="serious" data-i18n="impact_serious">Serious</option>
+        <option value="moderate" data-i18n="impact_moderate">Moderate</option>
+        <option value="minor" data-i18n="impact_minor">Minor</option>
       </select>
     </div>
     <div class="counters">
       <span class="counter critical" id="nav-critical">
-        <span class="dot"></span><span id="c-critical">0</span> Critical
+        <span class="dot"></span><span id="c-critical">0</span> <span data-i18n="impact_critical">Critical</span>
       </span>
       <span class="counter serious" id="nav-serious">
-        <span class="dot"></span><span id="c-serious">0</span> Serious
+        <span class="dot"></span><span id="c-serious">0</span> <span data-i18n="impact_serious">Serious</span>
       </span>
       <span class="counter moderate" id="nav-moderate">
-        <span class="dot"></span><span id="c-moderate">0</span> Moderate
+        <span class="dot"></span><span id="c-moderate">0</span> <span data-i18n="impact_moderate">Moderate</span>
       </span>
       <span class="counter minor" id="nav-minor">
-        <span class="dot"></span><span id="c-minor">0</span> Minor
+        <span class="dot"></span><span id="c-minor">0</span> <span data-i18n="impact_minor">Minor</span>
       </span>
     </div>
   </div>
@@ -68,13 +68,13 @@
 <div id="picker-scope-bar" class="picker-scope-bar hidden">
   <span class="picker-scope-icon">⚡</span>
   <div class="picker-scope-info">
-    <span class="picker-scope-label">Scanning:</span>
+    <span class="picker-scope-label" data-i18n="scanning_colon">Scanning:</span>
     <code id="picker-scope-selector" class="picker-scope-selector"></code>
     <span id="picker-scope-reason" class="picker-scope-reason"></span>
   </div>
   <div class="picker-scope-actions">
-    <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ Scan Scope</button>
-    <button id="btn-scope-scan-el" class="btn btn-small btn-primary" title="Run scan on the selected element">⚡ Scan Element</button>
+    <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ <span data-i18n="btn_scan_scope">Scan Scope</span></button>
+    <button id="btn-scope-scan-el" class="btn btn-small btn-primary" title="Run scan on the selected element">⚡ <span data-i18n="btn_scan_element">Scan Element</span></button>
     <button id="btn-scope-clear" class="btn btn-small" title="Cancel selection">✕</button>
   </div>
 </div>
@@ -82,16 +82,16 @@
 <!-- ══════════ SCAN TARGET BAR ══════════ -->
 <div id="scan-target-bar" class="scan-target-bar hidden">
   <span class="scan-target-icon">🎯</span>
-  <span class="scan-target-label">Scanned:</span>
+  <span class="scan-target-label" data-i18n="scanned_colon">Scanned:</span>
   <code id="scan-target-selector" class="scan-target-selector"></code>
-  <button id="btn-clear-target" class="btn btn-small" title="Clear scoped scan and return to full page">✕ Clear</button>
+  <button id="btn-clear-target" class="btn btn-small" title="Clear scoped scan and return to full page" data-i18n="btn_clear_target">✕ Clear</button>
 </div>
 
 <!-- ══════════ TAB BAR ══════════ -->
 <div class="tabs">
-  <button class="tab active" data-tab="violations">Violations</button>
-  <button class="tab"        data-tab="passes">Passes</button>
-  <button class="tab"        data-tab="incomplete">Incomplete</button>
+  <button class="tab active" data-tab="violations" data-i18n="tab_violations">Violations</button>
+  <button class="tab"        data-tab="passes"     data-i18n="tab_passes">Passes</button>
+  <button class="tab"        data-tab="incomplete" data-i18n="tab_incomplete">Incomplete</button>
 </div>
 
 <!-- ══════════ MAIN SPLIT ══════════ -->
@@ -103,7 +103,7 @@
       <div class="empty-icon">
         <img src="../icons/icon128.png" alt="a11y DevTools Logo">
       </div>
-      <p>Run a scan to see accessibility results</p>
+      <p data-i18n="empty_run_scan">Run a scan to see accessibility results</p>
     </div>
     <div id="issue-list"></div>
   </div>
@@ -114,7 +114,7 @@
   <!-- Right: Detail panel -->
   <div class="detail-panel" id="detail-panel">
     <div id="detail-placeholder" class="detail-placeholder">
-      <p>Select an issue from the list to see details</p>
+      <p data-i18n="empty_select_issue">Select an issue from the list to see details</p>
     </div>
     <div id="detail-content" class="hidden"></div>
   </div>
@@ -122,36 +122,45 @@
 </div>
 
 <!-- ══════════ STATUS BAR ══════════ -->
-<div class="statusbar" id="statusbar">Ready</div>
+<div class="statusbar" id="statusbar">
+  <span id="status-text" data-i18n="status_ready">Ready</span>
+  <select id="lang-select" class="lang-select select" title="Language / Idioma / Langue / Sprache">
+    <option value="en">English</option>
+    <option value="es">Español</option>
+    <option value="fr">Français</option>
+    <option value="de">Deutsch</option>
+    <option value="pt">Português</option>
+  </select>
+</div>
 
 <!-- ══════════ SCAN RULES MODAL ══════════ -->
 <div id="scan-modal" class="scan-modal hidden" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
   <div class="scan-modal-panel">
     <div class="scan-modal-header">
-      <h2 id="scan-modal-title">Select Rules To Scan</h2>
+      <h2 id="scan-modal-title" data-i18n="modal_select_rules_title">Select Rules To Scan</h2>
       <div class="btn-group">
-        <button id="btn-enter-custom-mode" class="btn" type="button">Custom Mode</button>
-        <button id="btn-back-to-presets" class="btn hidden" type="button">Back To Presets</button>
+        <button id="btn-enter-custom-mode" class="btn" type="button" data-i18n="btn_custom_mode">Custom Mode</button>
+        <button id="btn-back-to-presets" class="btn hidden" type="button" data-i18n="btn_back_to_presets">Back To Presets</button>
         <button id="btn-scan-modal-close" class="btn" type="button" aria-label="Close">✕</button>
       </div>
     </div>
 
     <div id="scan-modal-controls" class="scan-modal-controls">
-      <input id="rules-search" type="search" class="search-input" placeholder="Search rules or tags...">
+      <input id="rules-search" type="search" class="search-input" data-i18n-placeholder="search_rules_placeholder" placeholder="Search rules or tags...">
       <select id="scan-filter-type" class="select">
-        <option value="rule">Filter by rules</option>
-        <option value="tag">Filter by tags</option>
+        <option value="rule" data-i18n="filter_by_rules">Filter by rules</option>
+        <option value="tag"  data-i18n="filter_by_tags">Filter by tags</option>
       </select>
       <select id="rules-tag-filter" class="select">
-        <option value="">All tags</option>
+        <option value="" data-i18n="all_tags_option">All tags</option>
       </select>
-      <button id="btn-rules-select-all" class="btn" type="button">Select All</button>
-      <button id="btn-rules-clear-all" class="btn" type="button">Clear</button>
+      <button id="btn-rules-select-all" class="btn" type="button" data-i18n="btn_select_all">Select All</button>
+      <button id="btn-rules-clear-all" class="btn" type="button" data-i18n="btn_clear_all">Clear</button>
     </div>
 
     <div id="scan-modal-presets" class="scan-modal-presets">
       <div class="preset-header">
-        <span class="preset-label">Recommended presets</span>
+        <span class="preset-label" data-i18n="preset_recommended_label">Recommended presets</span>
       </div>
       <span id="preset-help" class="preset-help"></span>
       <div id="scan-preset-list" class="preset-list"></div>
@@ -164,12 +173,13 @@
     <div id="rules-list" class="rules-list"></div>
 
     <div class="scan-modal-footer">
-      <button id="btn-scan-cancel" class="btn" type="button">Cancel</button>
-      <button id="btn-scan-run-selected" class="btn btn-primary" type="button">Run Scan</button>
+      <button id="btn-scan-cancel" class="btn" type="button" data-i18n="btn_cancel">Cancel</button>
+      <button id="btn-scan-run-selected" class="btn btn-primary" type="button" data-i18n="btn_run_scan">Run Scan</button>
     </div>
   </div>
 </div>
 
+<script src="../i18n/i18n.js"></script>
 <script src="../shared/messaging.js"></script>
 <script src="../core/scoring.js"></script>
 <script src="../core/formatter.js"></script>
