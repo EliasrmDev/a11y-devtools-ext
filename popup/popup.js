@@ -162,11 +162,33 @@ function showError(msg) {
 
   $('btn-scan').addEventListener('click', runScan);
 
+  $('btn-clear-highlights').addEventListener('click', async () => {
+    const t = await getActiveTab();
+    if (t) chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: t.id });
+  });
+
   const tab = await getActiveTab();
   if (!tab) return;
+
+  // Always clear previous overlays when popup opens.
+  chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tab.id });
 
   chrome.runtime.sendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tab.id }, (resp) => {
     if (chrome.runtime.lastError) return;
     if (resp?.cached?.results) renderResults(resp.cached.results);
+  });
+
+  let cleanedOnClose = false;
+  const clearOnClose = () => {
+    if (cleanedOnClose) return;
+    cleanedOnClose = true;
+    chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tab.id });
+  };
+
+  window.addEventListener('pagehide', clearOnClose);
+  window.addEventListener('beforeunload', clearOnClose);
+  window.addEventListener('unload', clearOnClose);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') clearOnClose();
   });
 })();

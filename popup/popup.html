@@ -84,7 +84,15 @@
     <div class="time-row" id="scan-time"></div>
 
     <div class="popup-results">
-      <div class="popup-results-title" data-i18n="popup_results_title">Results (Violations)</div>
+      <div class="popup-results-header">
+        <div class="popup-results-title" data-i18n="popup_results_title">Results (Violations)</div>
+        <button id="btn-clear-highlights" class="btn-clear" title="Clear highlights">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+          <span data-i18n="btn_clear_highlights">Clear</span>
+        </button>
+      </div>
       <div id="violations-list" class="violations-list"></div>
     </div>
 
