@@ -20,6 +20,8 @@
   --c-error:    #f44747;
   --c-primary:  #0e70c0;
   --c-primary-l:#569cd6;
+  --c-secondary: #6a9955;
+  --c-terciary:  #c586c0;
   --bar-h:      60px;
   --tab-h:      34px;
   --status-h:   22px;
@@ -892,6 +894,10 @@ body {
 .preset-name {
   font-size: 11px;
   color: var(--c-text);
+}
+
+.preset-option.preset-usage-top {
+  outline: solid var(--c-primary);
 }
 
 .preset-desc {

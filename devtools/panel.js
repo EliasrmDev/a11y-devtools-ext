@@ -48,6 +48,8 @@ const RECOMMENDED_PRESETS = [
     id: 'wcag-minimo-a',
     name: 'WCAG Minimo A',
     description: 'Cobertura base de cumplimiento A',
+    checked: false,
+    usageLevel: 'medium',
     filterType: 'tag',
     values: ['wcag2a', 'wcag21a'],
   },
@@ -55,6 +57,8 @@ const RECOMMENDED_PRESETS = [
     id: 'wcag-recomendado-aa',
     name: 'WCAG Recomendado AA',
     description: 'Combinacion recomendada para la mayoria de productos',
+    checked: false,
+    usageLevel: 'medium',
     filterType: 'tag',
     values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'],
   },
@@ -62,6 +66,8 @@ const RECOMMENDED_PRESETS = [
     id: 'cumplimiento-y-buenas-practicas',
     name: 'Cumplimiento y Buenas Practicas',
     description: 'AA mas best-practice para calidad extendida',
+    checked: true,
+    usageLevel: 'top',
     filterType: 'tag',
     values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'],
   },
@@ -69,6 +75,8 @@ const RECOMMENDED_PRESETS = [
     id: 'teclado-y-foco',
     name: 'Teclado y Foco',
     description: 'Navegacion por teclado y estados de foco',
+    checked: false,
+    usageLevel: 'low',
     filterType: 'tag',
     values: ['cat.keyboard'],
   },
@@ -76,6 +84,8 @@ const RECOMMENDED_PRESETS = [
     id: 'formularios-y-nombre-rol-valor',
     name: 'Formularios y Etiquetas',
     description: 'Errores de formularios, labels y nombre/rol/valor',
+    checked: false,
+    usageLevel: 'medium',
     filterType: 'tag',
     values: ['cat.forms', 'cat.name-role-value'],
   },
@@ -83,6 +93,8 @@ const RECOMMENDED_PRESETS = [
     id: 'color-y-contraste',
     name: 'Color y Contraste',
     description: 'Revision centrada en color, contraste y senales visuales',
+    checked: false,
+    usageLevel: 'low',
     filterType: 'tag',
     values: ['cat.color', 'cat.sensory-and-visual-cues'],
   },
@@ -583,10 +595,25 @@ function renderPresetOptions() {
   const presetList = $('scan-preset-list');
   if (!presetList) return;
 
+  // Initialize default checked presets only when user has not selected any yet
+  if (state.selectedPresetIds.size === 0) {
+    RECOMMENDED_PRESETS.forEach(preset => {
+      if (preset.checked) state.selectedPresetIds.add(preset.id);
+    });
+  }
+
+  // Keep tag selection/count in sync with checked presets in preset mode
+  const presetTags = getPresetDerivedTags();
+  state.selectedTags.clear();
+  presetTags.forEach(tag => state.selectedTags.add(tag));
+  state.customExtraTags.forEach(tag => state.selectedTags.add(tag));
+  updateRuleSelectionCount();
+
   const html = RECOMMENDED_PRESETS.map(preset => {
       const checked = state.selectedPresetIds.has(preset.id) ? 'checked' : '';
+      const level = preset.usageLevel || 'medium';
       return `
-        <label class="preset-option">
+        <label class="preset-option preset-usage-${escHtml(level)}">
           <input type="checkbox" data-preset-id="${escHtml(preset.id)}" ${checked}>
           <span class="preset-meta">
             <span class="preset-name">${escHtml(preset.name)}</span>
