@@ -9,17 +9,24 @@
 <body>
   <header>
     <div class="logo">
-      <span class="logo-icon">♿</span>
+      <span class="logo-icon">
+        <img src="../icons/icon16.png" alt="a11y DevTools Logo">
+      </span>
       <span class="logo-text">a11y DevTools</span>
     </div>
     <button id="btn-scan" class="btn-primary">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.35-4.35" />
+      </svg>
       Run Quick Scan
     </button>
   </header>
 
   <div id="state-idle" class="state">
-    <div class="idle-icon">♿</div>
+    <div class="idle-icon">
+      <img src="../icons/icon48.png" alt="a11y DevTools Logo">
+    </div>
     <p class="idle-text">Click <strong>Run Quick Scan</strong> to analyze accessibility</p>
   </div>
 
@@ -37,9 +44,9 @@
     <div class="score-row">
       <div class="score-ring-wrap">
         <svg class="score-ring" viewBox="0 0 60 60">
-          <circle class="ring-bg" cx="30" cy="30" r="24"/>
-          <circle id="ring-progress" class="ring-progress" cx="30" cy="30" r="24"
-            stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
+          <circle class="ring-bg" cx="30" cy="30" r="24" />
+          <circle id="ring-progress" class="ring-progress" cx="30" cy="30" r="24" stroke-dasharray="150.8"
+            stroke-dashoffset="150.8" />
         </svg>
         <div class="score-inner">
           <span id="score-value">--</span>
@@ -47,10 +54,14 @@
         </div>
       </div>
       <div class="score-breakdown">
-        <div class="bd-row critical"><span class="dot"></span><span class="lbl">Critical</span><span id="cnt-critical" class="cnt">0</span></div>
-        <div class="bd-row serious" ><span class="dot"></span><span class="lbl">Serious</span> <span id="cnt-serious"  class="cnt">0</span></div>
-        <div class="bd-row moderate"><span class="dot"></span><span class="lbl">Moderate</span><span id="cnt-moderate" class="cnt">0</span></div>
-        <div class="bd-row minor"   ><span class="dot"></span><span class="lbl">Minor</span>   <span id="cnt-minor"    class="cnt">0</span></div>
+        <div class="bd-row critical"><span class="dot"></span><span class="lbl">Critical</span><span id="cnt-critical"
+            class="cnt">0</span></div>
+        <div class="bd-row serious"><span class="dot"></span><span class="lbl">Serious</span> <span id="cnt-serious"
+            class="cnt">0</span></div>
+        <div class="bd-row moderate"><span class="dot"></span><span class="lbl">Moderate</span><span id="cnt-moderate"
+            class="cnt">0</span></div>
+        <div class="bd-row minor"><span class="dot"></span><span class="lbl">Minor</span> <span id="cnt-minor"
+            class="cnt">0</span></div>
       </div>
     </div>
 
@@ -98,4 +109,5 @@
   <script src="../core/formatter.js"></script>
   <script src="popup.js"></script>
 </body>
+
 </html>

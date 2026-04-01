@@ -11,7 +11,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         selectedRuleIds: msg.selectedRuleIds,
         selectedTags: msg.selectedTags,
       })
-        .then(data => sendResponse({ type: MSG.SCAN_RESULT, ...data }))
+        .then(data => {
+          chrome.runtime.sendMessage({
+            type: MSG.SCAN_UPDATED,
+            tabId: msg.tabId,
+            results: data.results,
+            scanTarget: 'full-page',
+          }).catch(() => {});
+          sendResponse({ type: MSG.SCAN_RESULT, ...data });
+        })
         .catch(err => sendResponse({ type: MSG.SCAN_ERROR, error: err.message }));
       return true; // keep message channel open for async
 
@@ -33,7 +41,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         selectedRuleIds: msg.selectedRuleIds,
         selectedTags: msg.selectedTags,
       })
-        .then(data => sendResponse({ type: MSG.SCAN_RESULT, ...data }))
+        .then(data => {
+          chrome.runtime.sendMessage({
+            type: MSG.SCAN_UPDATED,
+            tabId: msg.tabId,
+            results: data.results,
+            scanTarget: 'element',
+            selector: msg.selector,
+          }).catch(() => {});
+          sendResponse({ type: MSG.SCAN_RESULT, ...data });
+        })
         .catch(err => sendResponse({ type: MSG.SCAN_ERROR, error: err.message }));
       return true;
 

@@ -31,7 +31,7 @@ header {
   border-bottom: 1px solid var(--c-border);
   background: var(--c-surface);
 }
-.logo { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.logo { display: flex; gap: 6px; font-weight: 600; }
 .logo-icon { font-size: 18px; }
 .logo-text { font-size: 14px; color: var(--c-primary); }
 

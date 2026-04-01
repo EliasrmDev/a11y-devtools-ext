@@ -447,9 +447,35 @@ function updatePickerUI() {
   }
 }
 
+function applyIncomingResults(results, statusText) {
+  if (!results) return;
+  state.previousResults = state.rawResults;
+  state.rawResults = results;
+  state.formattedResults = formatResults(results);
+  state.selectedRuleIdx = -1;
+  state.selectedNodeIdx = -1;
+  clearHighlights();
+  $('btn-export').disabled = false;
+  renderAll();
+  if (statusText) setStatus(statusText, 'success');
+}
+
 // Listen for picker messages from background (relayed from content)
 chrome.runtime.onMessage.addListener((msg) => {
   switch (msg.type) {
+    case MSG.SCAN_UPDATED:
+      if (msg.tabId !== tabId() || !msg.results) break;
+      applyIncomingResults(
+        msg.results,
+        `Scan synced — ${msg.results.url || ''} at ${new Date(msg.results.timestamp).toLocaleTimeString()}`
+      );
+      if (msg.scanTarget === 'full-page') {
+        updateScanTargetBar('Full page');
+      } else if (msg.scanTarget === 'element' && msg.selector) {
+        state.elementScope = msg.selector;
+        updateScanTargetBar(msg.selector, msg.selector);
+      }
+      break;
     case MSG.PICKER_SELECTED:
       onPickerSelected(msg);
       break;
@@ -469,11 +495,7 @@ function loadCachedResults() {
   safeSendMessage({ type: MSG.GET_CACHED_RESULTS, tabId: tabId() }, (resp) => {
     try {
       if (chrome.runtime.lastError || !resp?.cached?.results) return;
-      state.rawResults       = resp.cached.results;
-      state.formattedResults = formatResults(resp.cached.results);
-      $('btn-export').disabled = false;
-      renderAll();
-      setStatus('Loaded cached results');
+      applyIncomingResults(resp.cached.results, 'Loaded cached results');
     } catch (e) {
       if (!e?.message?.includes('Extension context invalidated')) throw e;
     }
