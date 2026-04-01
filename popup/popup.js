@@ -9,6 +9,8 @@ const states = {
   results: $('state-results'),
 };
 
+let expandedViolationIdx = -1;
+
 function showState(name) {
   for (const [k, el] of Object.entries(states)) el.classList.toggle('hidden', k !== name);
 }
@@ -16,6 +18,36 @@ function showState(name) {
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeImpact(impact) {
+  return ['critical', 'serious', 'moderate', 'minor'].includes(impact) ? impact : 'null';
+}
+
+async function highlightSelector(selector, impact, description, help) {
+  const tab = await getActiveTab();
+  if (!tab || !selector) return;
+
+  chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tab.id }, () => {
+    chrome.runtime.sendMessage({
+      type: MSG.HIGHLIGHT_ELEMENT,
+      tabId: tab.id,
+      selector,
+      impact,
+      description,
+      help,
+    });
+  });
 }
 
 async function runScan() {
@@ -63,6 +95,57 @@ function renderResults(results) {
   // Meta
   $('scan-url').textContent  = results.url || '';
   $('scan-time').textContent = results.timestamp ? new Date(results.timestamp).toLocaleString() : '';
+
+  // Violations list (similar to DevTools list, only violations)
+  const listEl = $('violations-list');
+  if (formatted.violations.length === 0) {
+    listEl.innerHTML = '<div class="viol-empty">No violations found.</div>';
+    listEl.onclick = null;
+  } else {
+    listEl.innerHTML = formatted.violations.map((rule, idx) => `
+      <div class="viol-item ${expandedViolationIdx === idx ? 'expanded' : ''}" data-rule-idx="${idx}">
+        <button class="viol-head" data-action="toggle" data-rule-idx="${idx}">
+          <span class="viol-impact ${normalizeImpact(rule.impact)}"></span>
+          <span class="viol-id">${escHtml(rule.id)}</span>
+          <span class="viol-count">${rule.nodeCount}</span>
+          <span class="viol-chevron">${expandedViolationIdx === idx ? '▾' : '▸'}</span>
+        </button>
+        <div class="viol-desc">${escHtml(rule.description || rule.help || '')}</div>
+        <div class="viol-nodes ${expandedViolationIdx === idx ? '' : 'hidden'}">
+          ${rule.nodes.map((node, nIdx) => `
+            <button
+              class="viol-node-btn"
+              data-action="highlight"
+              data-rule-idx="${idx}"
+              data-node-idx="${nIdx}"
+              title="Click to highlight"
+            >${escHtml(node.primarySelector || node.selector || '(no selector)')}</button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('');
+
+    listEl.onclick = async (e) => {
+      const toggleBtn = e.target.closest('[data-action="toggle"]');
+      if (toggleBtn) {
+        const idx = Number(toggleBtn.dataset.ruleIdx);
+        expandedViolationIdx = expandedViolationIdx === idx ? -1 : idx;
+        renderResults(results);
+        return;
+      }
+
+      const hlBtn = e.target.closest('[data-action="highlight"]');
+      if (hlBtn) {
+        const rIdx = Number(hlBtn.dataset.ruleIdx);
+        const nIdx = Number(hlBtn.dataset.nodeIdx);
+        const rule = formatted.violations[rIdx];
+        const node = rule?.nodes?.[nIdx];
+        if (rule && node?.primarySelector) {
+          await highlightSelector(node.primarySelector, rule.impact, rule.description, rule.help);
+        }
+      }
+    };
+  }
 
   showState('results');
 }
