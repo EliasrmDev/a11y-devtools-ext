@@ -252,6 +252,7 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
 }
 
 // ── AI Suggest Fix (Chrome Built-in AI via port) ──
+
 chrome.runtime.onConnect.addListener(port => {
   if (port.name !== 'ai-fix') return;
   port.onMessage.addListener(async (msg) => {
@@ -279,14 +280,32 @@ chrome.runtime.onConnect.addListener(port => {
 
       const session = await LanguageModel.create(createOpts);
 
+      port.postMessage({ type: 'status', message: '🔧 Generating fix…' });
+
+      // Stream response — send chunks to panel for live preview
+      let lastResponse = '';
       const stream = session.promptStreaming(msg.prompt);
       const reader = stream.getReader();
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        port.postMessage({ type: 'chunk', text: value });
+        // promptStreaming may return cumulative or delta
+        if (typeof value === 'string') {
+          if (value.length >= lastResponse.length && value.startsWith(lastResponse)) {
+            lastResponse = value;
+          } else {
+            lastResponse += value;
+          }
+        }
+        port.postMessage({ type: 'chunk', text: lastResponse });
       }
+
+      if (!lastResponse.trim()) {
+        port.postMessage({ type: 'status', message: '⚠ AI returned empty response' });
+      }
+
       session.destroy();
+      port.postMessage({ type: 'result', text: lastResponse });
       port.postMessage({ type: 'done' });
     } catch (err) {
       port.postMessage({ type: 'error', error: err.message || String(err) });

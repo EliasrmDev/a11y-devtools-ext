@@ -34,6 +34,7 @@ const state = {
   pickerScopeReason: '',
   pickerScopeLabel: '',
   lastScanTarget: null,
+  lastScanConfig: null,
 };
 
 // ─────────────────────────────────────────────
@@ -180,12 +181,16 @@ function runScan(filterType, selectedValues) {
   $('btn-export').disabled = true;
   setStatus(`Scanning ${selected.length} ${mode}${selected.length !== 1 ? 's' : ''}...`);
 
-  safeSendMessage({
-    type: MSG.SCAN_REQUEST,
-    tabId: tabId(),
+  state.lastScanConfig = {
     filterType: mode,
     selectedRuleIds: mode === 'rule' ? selected : [],
     selectedTags: mode === 'tag' ? selected : [],
+  };
+
+  safeSendMessage({
+    type: MSG.SCAN_REQUEST,
+    tabId: tabId(),
+    ...state.lastScanConfig,
   }, (resp) => {
     try {
       showLoading(false);
@@ -1095,7 +1100,7 @@ function selectNode(rIdx, nIdx) {
 // ─────────────────────────────────────────────
 // AI Suggest Fix (Chrome Built-in AI / Prompt API)
 // ─────────────────────────────────────────────
-function buildFixPrompt(rule, node) {
+function buildFixPrompt(rule, node, domContext) {
   const messages = [];
   for (const group of (node.checks || [])) {
     for (const c of group.checks) {
@@ -1103,21 +1108,22 @@ function buildFixPrompt(rule, node) {
     }
   }
 
-  return `You are a web accessibility expert. Provide a concise fix for this accessibility issue.
+  return `You are an accessibility expert. Fix the issue with minimal output.
 
 Rule: ${rule.id} — ${rule.description}
-Impact: ${rule.impact || 'unknown'}
-Help: ${rule.help}
-Element HTML: ${node.html || 'N/A'}
+HTML: ${node.html || 'N/A'}
 Selector: ${node.selector || 'N/A'}
+Issues:
+${messages.join('; ')}
 
-Check messages:
-${messages.join('\n')}
+Output:
+- 1 short explanation (max 15 words)
+- 1 fix (code or steps)
 
-Respond with:
-1. A brief explanation (1-2 sentences) of the problem.
-2. The corrected HTML code if applicable, or clear step-by-step instructions if the fix is not purely code.
-Keep it short and actionable. Use markdown code blocks for code.`;
+Rules:
+- Be direct, no extra text
+- Prefer code fix if possible
+- Use valid HTML`
 }
 
 function suggestAIFix(rule, node, containerEl) {
@@ -1134,12 +1140,16 @@ function suggestAIFix(rule, node, containerEl) {
   btnEl.textContent = '⏳ Generating…';
   outputEl.classList.remove('hidden');
   outputEl.textContent = 'Waiting for AI model…';
+  _startAIFix(rule, node, containerEl, outputEl, btnEl);
+}
 
+function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
   const prompt = buildFixPrompt(rule, node);
   const systemPrompt = 'You are a concise web accessibility remediation assistant. Respond only with the fix. Use markdown.';
 
-  let fullText = '';
   const port = chrome.runtime.connect({ name: 'ai-fix' });
+
+  let logHtml = '';
 
   port.onMessage.addListener((msg) => {
     if (msg.type === 'downloading') {
@@ -1149,15 +1159,15 @@ function suggestAIFix(rule, node, containerEl) {
         <div class="ai-progress-bar"><div class="ai-progress-fill" style="width:${pct}%"></div></div>
       </div>`;
       btnEl.textContent = '⏳ Downloading…';
+    } else if (msg.type === 'status') {
+      outputEl.innerHTML = logHtml + `<div class="ai-fix-status"><span class="ai-status-spinner"></span> ${escHtml(msg.message)}</div>`;
+      btnEl.textContent = '⏳ Working…';
     } else if (msg.type === 'chunk') {
-      // Detect cumulative vs delta: if chunk contains full text so far, it's cumulative
-      if (msg.text.length >= fullText.length && msg.text.startsWith(fullText)) {
-        fullText = msg.text;
-      } else {
-        fullText += msg.text;
-      }
+      outputEl.innerHTML = logHtml + `<div class="ai-fix-preview">${formatAIResponse(msg.text)}</div>`;
       btnEl.textContent = '⏳ Generating…';
-      outputEl.innerHTML = formatAIResponse(fullText);
+    } else if (msg.type === 'result') {
+      const disclaimer = '<div class="ai-fix-disclaimer">⚠ This is only a suggestion/example. Links are for reference only. The solution may not be correct for your context. Always review and test before applying.</div>';
+      outputEl.innerHTML = logHtml + disclaimer + formatAIResponse(msg.text);
     } else if (msg.type === 'done') {
       outputEl.dataset.loaded = 'true';
       btnEl.textContent = '🤖 Suggest Fix';
@@ -1196,6 +1206,8 @@ function formatAIResponse(text) {
   html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
     `<pre class="ai-code-block"><button class="ai-copy-btn" title="Copy code">📋</button><code>${code.trim()}</code></pre>`
   );
+  // Markdown links: [text](url) → <a href="url" target="_blank">text</a>
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
   // Inline code
   html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
   // Bold
