@@ -28,12 +28,14 @@ Advanced Chrome extension for web accessibility testing, powered by [axe-core](h
 
 ```ini
 a11y-ext/
+├── .gitignore
 ├── manifest.json
 ├── background.js            Service worker — runs scans, routes messages, caches results
 ├── shared/
 │   └── messaging.js         MSG.* constants shared across all contexts
 ├── content/
-│   └── content.js           DOM overlay engine (highlights, tooltips, scroll)
+│   ├── content.js           DOM overlay engine (highlights, tooltips, scroll)
+│   └── picker.js            Element picker logic
 ├── core/
 │   ├── scoring.js           Score calculation + grade
 │   └── formatter.js         Normalizes & sorts axe results
