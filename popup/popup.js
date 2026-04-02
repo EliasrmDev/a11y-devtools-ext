@@ -105,12 +105,14 @@ function renderResults(results) {
     listEl.innerHTML = formatted.violations.map((rule, idx) => `
       <div class="viol-item ${expandedViolationIdx === idx ? 'expanded' : ''}" data-rule-idx="${idx}">
         <button class="viol-head" data-action="toggle" data-rule-idx="${idx}">
-          <span class="viol-impact ${normalizeImpact(rule.impact)}"></span>
-          <span class="viol-id">${escHtml(rule.id)}</span>
-          <span class="viol-count">${rule.nodeCount}</span>
-          <span class="viol-chevron">${expandedViolationIdx === idx ? '▾' : '▸'}</span>
+          <div class="viol-head-top">
+            <span class="viol-impact ${normalizeImpact(rule.impact)}"></span>
+            <span class="viol-id">${escHtml(rule.id)}</span>
+            <span class="viol-count">${rule.nodeCount}</span>
+            <span class="viol-chevron">${expandedViolationIdx === idx ? '▾' : '▸'}</span>
+          </div>
+          <div class="viol-desc">${escHtml(rule.description || rule.help || '')}</div>
         </button>
-        <div class="viol-desc">${escHtml(rule.description || rule.help || '')}</div>
         <div class="viol-nodes ${expandedViolationIdx === idx ? '' : 'hidden'}">
           ${rule.nodes.map((node, nIdx) => `
             <button
@@ -130,7 +132,10 @@ function renderResults(results) {
       if (toggleBtn) {
         const idx = Number(toggleBtn.dataset.ruleIdx);
         expandedViolationIdx = expandedViolationIdx === idx ? -1 : idx;
+        const tab = await getActiveTab();
+        chrome.runtime.sendMessage({ type: MSG.UNHIGHLIGHT_ALL, tabId: tab.id });
         renderResults(results);
+
         return;
       }
 
