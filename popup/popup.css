@@ -1,23 +1,23 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --c-bg:       #202124;
-  --c-surface:  #2d2e30;
-  --c-border:   #3c3f43;
-  --c-text:     #e8eaed;
-  --c-sub:      #9aa0a6;
-  --c-critical: #ea4335;
-  --c-serious:  #fa7b17;
-  --c-moderate: #fbbc04;
-  --c-minor:    #4285f4;
-  --c-pass:     #34a853;
-  --c-primary:  #8ab4f8;
+  --c-bg:       #070a10;
+  --c-surface:  #0c1018;
+  --c-border:   rgba(255,255,255,0.08);
+  --c-text:     #e4e8f0;
+  --c-sub:      #7a8499;
+  --c-critical: #ff5050;
+  --c-serious:  #ffa032;
+  --c-moderate: #ffd232;
+  --c-minor:    #5b8dee;
+  --c-pass:     #34c97a;
+  --c-primary:  #5b8dee;
   --radius:     6px;
 }
 
 body {
   width: 320px;
-  font: 13px/1.5 -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: 13px/1.5 'Inter', 'Segoe UI', system-ui, sans-serif;
   background: var(--c-bg);
   color: var(--c-text);
 }
@@ -43,7 +43,7 @@ header {
   border-radius: var(--radius);
   border: none;
   background: var(--c-primary);
-  color: #202124;
+  color: #fff;
   font: 600 12px/1 sans-serif;
   cursor: pointer;
   transition: opacity .15s;

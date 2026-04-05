@@ -1030,6 +1030,16 @@ function renderTopBar() {
   $('score-display').style.color = scoreColor(score);
   $('grade-display').textContent = grade;
 
+  // Update SVG score ring
+  const ring = document.getElementById('score-ring');
+  if (ring) {
+    const CIRC = 2 * Math.PI * 44; // r=44 → 276.46
+    const offset = CIRC - (Math.min(Math.max(score, 0), 100) / 100) * CIRC;
+    ring.style.strokeDasharray = CIRC.toFixed(2);
+    ring.style.strokeDashoffset = offset.toFixed(2);
+    ring.style.stroke = scoreColor(score);
+  }
+
   for (const imp of ['critical','serious','moderate','minor']) {
     $(`c-${imp}`).textContent = breakdown[imp] || 0;
   }
@@ -1725,4 +1735,21 @@ window.addEventListener('beforeunload', () => {
   }
 
   loadCachedResults();
+
+  // ── Filter chips ↔ hidden #filter-impact select sync ──
+  const chips = document.querySelectorAll('#filter-chips .chip');
+  const filterSel = $('filter-impact');
+  if (chips.length && filterSel) {
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        chips.forEach(c => c.classList.remove('chip-active'));
+        chip.classList.add('chip-active');
+        filterSel.value = chip.dataset.value;
+        filterSel.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    });
+    filterSel.addEventListener('change', () => {
+      chips.forEach(c => c.classList.toggle('chip-active', c.dataset.value === filterSel.value));
+    });
+  }
 })();

@@ -7,111 +7,157 @@
 </head>
 <body>
 
-<!-- ══════════ TOP BAR ══════════ -->
-<div class="topbar">
-  <div class="topbar-left">
-    <button id="btn-scan" class="btn btn-primary">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <circle cx="9" cy="6" r="2" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <circle cx="15" cy="12" r="2" />
-        <line x1="4" y1="18" x2="20" y2="18" />
-        <circle cx="11" cy="18" r="2" />
-      </svg>
-      <span data-i18n="btn_setup_scan">Setup Scan</span>
-    </button>
-    <button id="btn-picker" class="btn" data-i18n-title="btn_pick_element_title" title="Pick an element from the page to scan">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 3l14 8-6 2-2 6z"/><path d="M14 14l4 4"/></svg>
-      <span data-i18n="btn_pick_element">Pick Element</span>
-    </button>
-    <button id="btn-export" class="btn" disabled>
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-      <span data-i18n="btn_export_json">Export JSON</span>
-    </button>
-  </div>
+<!-- ══════════════════════════════════════════
+     THREE-COLUMN MAIN LAYOUT
+══════════════════════════════════════════ -->
+<div class="panel-main">
 
-  <div class="topbar-right">
-    <div class="score-and-filter">
-      <div class="score-chip">
-        <span class="score-chip-label" data-i18n="score_label">Score</span>
-        <span id="score-display" class="score-chip-value">—</span>
-        <span id="grade-display" class="score-chip-grade"></span>
+  <!-- ═══════ LEFT PANEL: Score + Breakdown + Actions ═══════ -->
+  <div class="left-panel">
+
+    <!-- Logo -->
+    <div class="left-logo">
+      <span class="left-logo-text">A11y</span>
+      <span class="left-logo-sub">DevTools</span>
+    </div>
+
+        <!-- Action buttons -->
+    <div class="left-actions">
+      <button id="btn-scan" class="btn btn-primary btn-full">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="6" x2="20" y2="6"/><circle cx="9" cy="6" r="2"/>
+          <line x1="4" y1="12" x2="20" y2="12"/><circle cx="15" cy="12" r="2"/>
+          <line x1="4" y1="18" x2="20" y2="18"/><circle cx="11" cy="18" r="2"/>
+        </svg>
+        <span data-i18n="btn_setup_scan">Setup Scan</span>
+      </button>
+      <div class="btn-row">
+        <button id="btn-picker" class="btn" title="Pick an element from the page to scan" data-i18n-title="btn_pick_element_title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 3l14 8-6 2-2 6z"/><path d="M14 14l4 4"/></svg>
+          <span data-i18n="btn_pick_element">Pick</span>
+        </button>
+        <button id="btn-export" class="btn" disabled>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span data-i18n="btn_export_json">Export</span>
+        </button>
       </div>
-      <input id="search" type="search" data-i18n-placeholder="search_issues_placeholder" placeholder="Search issues…" class="search-input">
-      <select id="filter-impact" class="select">
+    </div>
+
+    <!-- Score ring -->
+    <div class="score-section">
+      <div class="score-ring-wrap">
+        <svg class="score-svg" viewBox="0 0 108 108" aria-hidden="true">
+          <circle class="ring-track" cx="54" cy="54" r="44"/>
+          <circle id="score-ring" class="ring-fill" cx="54" cy="54" r="44"
+            stroke-dasharray="276.46" stroke-dashoffset="276.46"/>
+        </svg>
+        <div class="score-inner">
+          <span id="score-display" class="score-number">—</span>
+          <span id="grade-display" class="score-grade"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Violation breakdown -->
+    <div class="viol-section">
+      <div class="viol-section-label" data-i18n="violations_label">Violations</div>
+      <div class="counters">
+        <span class="counter critical" id="nav-critical" role="button" tabindex="0" aria-label="Filter by critical">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="counter-name" data-i18n="impact_critical">Critical</span>
+          <span id="c-critical" class="counter-val">0</span>
+        </span>
+        <span class="counter serious" id="nav-serious" role="button" tabindex="0" aria-label="Filter by serious">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="counter-name" data-i18n="impact_serious">Serious</span>
+          <span id="c-serious" class="counter-val">0</span>
+        </span>
+        <span class="counter moderate" id="nav-moderate" role="button" tabindex="0" aria-label="Filter by moderate">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="counter-name" data-i18n="impact_moderate">Moderate</span>
+          <span id="c-moderate" class="counter-val">0</span>
+        </span>
+        <span class="counter minor" id="nav-minor" role="button" tabindex="0" aria-label="Filter by minor">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="counter-name" data-i18n="impact_minor">Minor</span>
+          <span id="c-minor" class="counter-val">0</span>
+        </span>
+      </div>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- ═══════ MIDDLE PANEL: Tabs + Toolbar + Issue list ═══════ -->
+  <div class="middle-panel">
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-tab="violations" role="tab" aria-selected="true" data-i18n="tab_violations">Violations</button>
+      <button class="tab"        data-tab="passes"     role="tab" aria-selected="false" data-i18n="tab_passes">Passes</button>
+      <button class="tab"        data-tab="incomplete" role="tab" aria-selected="false" data-i18n="tab_incomplete">Incomplete</button>
+    </div>
+
+    <!-- Search + filter chips -->
+    <div class="middle-toolbar">
+      <input id="search" type="search" data-i18n-placeholder="search_issues_placeholder"
+        placeholder="Search issues…" class="search-input" autocomplete="off">
+      <div class="filter-chips" id="filter-chips" role="group" aria-label="Filter by impact">
+        <button class="chip chip-all chip-active" data-value="" type="button">All</button>
+        <button class="chip chip-critical" data-value="critical" type="button" data-i18n="impact_critical">Critical</button>
+        <button class="chip chip-serious"  data-value="serious"  type="button" data-i18n="impact_serious">Serious</button>
+        <button class="chip chip-moderate" data-value="moderate" type="button" data-i18n="impact_moderate">Moderate</button>
+        <button class="chip chip-minor"    data-value="minor"    type="button" data-i18n="impact_minor">Minor</button>
+      </div>
+      <!-- hidden select kept for JS compatibility -->
+      <select id="filter-impact" class="sr-only" aria-hidden="true" tabindex="-1">
         <option value="" data-i18n="filter_all_impacts">All impacts</option>
         <option value="critical" data-i18n="impact_critical">Critical</option>
-        <option value="serious" data-i18n="impact_serious">Serious</option>
+        <option value="serious"  data-i18n="impact_serious">Serious</option>
         <option value="moderate" data-i18n="impact_moderate">Moderate</option>
-        <option value="minor" data-i18n="impact_minor">Minor</option>
+        <option value="minor"    data-i18n="impact_minor">Minor</option>
       </select>
     </div>
-    <div class="counters">
-      <span class="counter critical" id="nav-critical">
-        <span class="dot"></span><span id="c-critical">0</span> <span data-i18n="impact_critical">Critical</span>
-      </span>
-      <span class="counter serious" id="nav-serious">
-        <span class="dot"></span><span id="c-serious">0</span> <span data-i18n="impact_serious">Serious</span>
-      </span>
-      <span class="counter moderate" id="nav-moderate">
-        <span class="dot"></span><span id="c-moderate">0</span> <span data-i18n="impact_moderate">Moderate</span>
-      </span>
-      <span class="counter minor" id="nav-minor">
-        <span class="dot"></span><span id="c-minor">0</span> <span data-i18n="impact_minor">Minor</span>
-      </span>
-    </div>
-  </div>
-</div>
 
-<!-- ══════════ PICKER SCOPE BAR ══════════ -->
-<div id="picker-scope-bar" class="picker-scope-bar hidden">
-  <span class="picker-scope-icon">⚡</span>
-  <div class="picker-scope-info">
-    <span class="picker-scope-label" data-i18n="scanning_colon">Scanning:</span>
-    <code id="picker-scope-selector" class="picker-scope-selector"></code>
-    <span id="picker-scope-reason" class="picker-scope-reason"></span>
-  </div>
-  <div class="picker-scope-actions">
-    <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ <span data-i18n="btn_scan_scope">Scan Scope</span></button>
-    <button id="btn-scope-scan-el" class="btn btn-small btn-primary" title="Run scan on the selected element">⚡ <span data-i18n="btn_scan_element">Scan Element</span></button>
-    <button id="btn-scope-clear" class="btn btn-small" title="Cancel selection">✕</button>
-  </div>
-</div>
-
-<!-- ══════════ SCAN TARGET BAR ══════════ -->
-<div id="scan-target-bar" class="scan-target-bar hidden">
-  <span class="scan-target-icon">🎯</span>
-  <span class="scan-target-label" data-i18n="scanned_colon">Scanned:</span>
-  <code id="scan-target-selector" class="scan-target-selector"></code>
-  <button id="btn-clear-target" class="btn btn-small" title="Clear scoped scan and return to full page" data-i18n="btn_clear_target">✕ Clear</button>
-</div>
-
-<!-- ══════════ TAB BAR ══════════ -->
-<div class="tabs">
-  <button class="tab active" data-tab="violations" data-i18n="tab_violations">Violations</button>
-  <button class="tab"        data-tab="passes"     data-i18n="tab_passes">Passes</button>
-  <button class="tab"        data-tab="incomplete" data-i18n="tab_incomplete">Incomplete</button>
-</div>
-
-<!-- ══════════ MAIN SPLIT ══════════ -->
-<div class="main-split">
-
-  <!-- Left: Issue list -->
-  <div class="sidebar" id="sidebar">
-    <div id="empty-state" class="empty-state">
-      <div class="empty-icon">
-        <img src="../icons/icon128.png" alt="a11y DevTools Logo">
+    <!-- Picker scope bar -->
+    <div id="picker-scope-bar" class="picker-scope-bar hidden">
+      <span class="picker-scope-icon" aria-hidden="true">⚡</span>
+      <div class="picker-scope-info">
+        <span class="picker-scope-label" data-i18n="scanning_colon">Scanning:</span>
+        <code id="picker-scope-selector" class="picker-scope-selector"></code>
+        <span id="picker-scope-reason" class="picker-scope-reason"></span>
       </div>
-      <p data-i18n="empty_run_scan">Run a scan to see accessibility results</p>
+      <div class="picker-scope-actions">
+        <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ <span data-i18n="btn_scan_scope">Scan Scope</span></button>
+        <button id="btn-scope-scan-el" class="btn btn-small btn-primary" title="Run scan on the selected element">⚡ <span data-i18n="btn_scan_element">Scan Element</span></button>
+        <button id="btn-scope-clear" class="btn btn-small" title="Cancel selection">✕</button>
+      </div>
     </div>
-    <div id="issue-list"></div>
-  </div>
+
+    <!-- Scan target bar -->
+    <div id="scan-target-bar" class="scan-target-bar hidden">
+      <span class="scan-target-icon" aria-hidden="true">🎯</span>
+      <span class="scan-target-label" data-i18n="scanned_colon">Scanned:</span>
+      <code id="scan-target-selector" class="scan-target-selector"></code>
+      <button id="btn-clear-target" class="btn btn-small" title="Clear scoped scan" data-i18n="btn_clear_target">✕ Clear</button>
+    </div>
+
+    <!-- Issue list -->
+    <div class="sidebar" id="sidebar">
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">
+          <img src="../icons/icon128.png" alt="">
+        </div>
+        <p data-i18n="empty_run_scan">Run a scan to see accessibility results</p>
+      </div>
+      <div id="issue-list"></div>
+    </div>
+
+  </div><!-- /middle-panel -->
 
   <!-- Resize handle -->
-  <div class="resize-handle" id="resize-handle"></div>
+  <div class="resize-handle" id="resize-handle" role="separator" aria-orientation="vertical"></div>
 
-  <!-- Right: Detail panel -->
+  <!-- ═══════ RIGHT PANEL: Detail ═══════ -->
   <div class="detail-panel" id="detail-panel">
     <div id="detail-placeholder" class="detail-placeholder">
       <p data-i18n="empty_select_issue">Select an issue from the list to see details</p>
@@ -119,12 +165,12 @@
     <div id="detail-content" class="hidden"></div>
   </div>
 
-</div>
+</div><!-- /panel-main -->
 
 <!-- ══════════ STATUS BAR ══════════ -->
 <div class="statusbar" id="statusbar">
   <span id="status-text" data-i18n="status_ready">Ready</span>
-  <select id="lang-select" class="lang-select select" title="Language / Idioma / Langue / Sprache">
+  <select id="lang-select" class="lang-select" title="Language / Idioma / Langue / Sprache">
     <option value="en">English</option>
     <option value="es">Español</option>
     <option value="fr">Français</option>
@@ -155,7 +201,7 @@
         <option value="" data-i18n="all_tags_option">All tags</option>
       </select>
       <button id="btn-rules-select-all" class="btn" type="button" data-i18n="btn_select_all">Select All</button>
-      <button id="btn-rules-clear-all" class="btn" type="button" data-i18n="btn_clear_all">Clear</button>
+      <button id="btn-rules-clear-all"  class="btn" type="button" data-i18n="btn_clear_all">Clear</button>
     </div>
 
     <div id="scan-modal-presets" class="scan-modal-presets">
