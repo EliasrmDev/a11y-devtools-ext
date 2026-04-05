@@ -1649,29 +1649,46 @@ $('search').addEventListener('input', e => {
 });
 
 // ─────────────────────────────────────────────
-// Resizable sidebar
+// Resizable panels (middle ↔ detail)
 // ─────────────────────────────────────────────
 const resizeHandle = $('resize-handle');
-const sidebar      = document.querySelector('.sidebar');
+const middlePanel  = document.querySelector('.middle-panel');
+const detailPanel  = document.querySelector('.detail-panel');
 let   dragging     = false;
 let   startX       = 0;
 let   startW       = 0;
 
 resizeHandle.addEventListener('mousedown', e => {
+  if (!middlePanel || !detailPanel) return;
   dragging = true;
   startX   = e.clientX;
-  startW   = sidebar.offsetWidth;
+  startW   = middlePanel.offsetWidth;
   resizeHandle.classList.add('dragging');
+  document.body.classList.add('resizing');
   e.preventDefault();
 });
+
 document.addEventListener('mousemove', e => {
-  if (!dragging) return;
-  const w = Math.max(180, Math.min(startW + e.clientX - startX, window.innerWidth * 0.7));
-  sidebar.style.width = w + 'px';
+  if (!dragging || !middlePanel) return;
+  const containerWidth = middlePanel.parentElement.offsetWidth - 252 - 4; // exclude left panel + resize handle
+  const newMiddleWidth = Math.max(180, Math.min(startW + e.clientX - startX, containerWidth - 200));
+  const newDetailWidth = containerWidth - newMiddleWidth;
+
+  middlePanel.style.flexBasis = newMiddleWidth + 'px';
+  middlePanel.style.flexGrow = '0';
+  middlePanel.style.flexShrink = '0';
+
+  detailPanel.style.flexBasis = newDetailWidth + 'px';
+  detailPanel.style.flexGrow = '0';
+  detailPanel.style.flexShrink = '0';
 });
+
 document.addEventListener('mouseup', () => {
-  dragging = false;
-  resizeHandle.classList.remove('dragging');
+  if (dragging) {
+    dragging = false;
+    resizeHandle.classList.remove('dragging');
+    document.body.classList.remove('resizing');
+  }
 });
 
 // ─────────────────────────────────────────────

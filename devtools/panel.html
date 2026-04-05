@@ -120,11 +120,13 @@
 
     <!-- Picker scope bar -->
     <div id="picker-scope-bar" class="picker-scope-bar hidden">
-      <span class="picker-scope-icon" aria-hidden="true">⚡</span>
-      <div class="picker-scope-info">
-        <span class="picker-scope-label" data-i18n="scanning_colon">Scanning:</span>
-        <code id="picker-scope-selector" class="picker-scope-selector"></code>
-        <span id="picker-scope-reason" class="picker-scope-reason"></span>
+      <div class="picker-scope-overlay">
+        <span class="picker-scope-icon" aria-hidden="true">⚡</span>
+        <div class="picker-scope-info">
+          <span class="picker-scope-label" data-i18n="scanning_colon">Scanning:</span>
+          <code id="picker-scope-selector" class="picker-scope-selector"></code>
+          <span id="picker-scope-reason" class="picker-scope-reason"></span>
+        </div>
       </div>
       <div class="picker-scope-actions">
         <button id="btn-scope-scan" class="btn btn-small btn-scope-scan btn-primary" title="Run scan on the current scope">⚡ <span data-i18n="btn_scan_scope">Scan Scope</span></button>

@@ -143,16 +143,61 @@ function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// Helper function to wait for scroll to complete
+function waitForScrollEnd(element, callback, maxWait = 1000) {
+  let timeout;
+  let scrollEndTimer;
+
+  const cleanup = () => {
+    if (timeout) clearTimeout(timeout);
+    if (scrollEndTimer) clearTimeout(scrollEndTimer);
+    window.removeEventListener('scroll', onScroll, { passive: true });
+  };
+
+  const onScroll = () => {
+    if (scrollEndTimer) clearTimeout(scrollEndTimer);
+    scrollEndTimer = setTimeout(() => {
+      cleanup();
+      callback();
+    }, 150); // Wait 150ms after last scroll event
+  };
+
+  // Fallback timeout
+  timeout = setTimeout(() => {
+    cleanup();
+    callback();
+  }, maxWait);
+
+  // Listen for scroll events
+  window.addEventListener('scroll', onScroll, { passive: true });
+
+  // Start the timer immediately in case scroll doesn't fire
+  onScroll();
+}
+
 // Message listener (MSG constants inlined to avoid importScripts complexity)
 chrome.runtime.onMessage.addListener((msg) => {
   switch (msg.type) {
     case 'HIGHLIGHT_ELEMENT':
-      createOverlay(msg.selector, msg.impact, msg.description, msg.help);
-      activateOverlay(msg.selector);
+      // First scroll to element, then create overlay after scroll completes
       try {
         const el = document.querySelector(msg.selector);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      } catch (_) {}
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Wait for scroll to complete before creating overlay
+          waitForScrollEnd(el, () => {
+            createOverlay(msg.selector, msg.impact, msg.description, msg.help);
+            activateOverlay(msg.selector);
+          });
+        } else {
+          // Element not found, create overlay anyway
+          createOverlay(msg.selector, msg.impact, msg.description, msg.help);
+          activateOverlay(msg.selector);
+        }
+      } catch (_) {
+        createOverlay(msg.selector, msg.impact, msg.description, msg.help);
+        activateOverlay(msg.selector);
+      }
       break;
 
     case 'UNHIGHLIGHT_ALL':
@@ -163,7 +208,21 @@ chrome.runtime.onMessage.addListener((msg) => {
       activateOverlay(msg.selector);
       try {
         const el = document.querySelector(msg.selector);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Also update overlay position after scroll for existing overlays
+          waitForScrollEnd(el, () => {
+            const overlayData = overlays.get(msg.selector);
+            if (overlayData) {
+              const newRect = getRect(overlayData.target);
+              const { overlay } = overlayData;
+              overlay.style.top = `${newRect.top}px`;
+              overlay.style.left = `${newRect.left}px`;
+              overlay.style.width = `${Math.max(newRect.width, 4)}px`;
+              overlay.style.height = `${Math.max(newRect.height, 4)}px`;
+            }
+          });
+        }
       } catch (_) {}
       break;
   }

@@ -258,7 +258,7 @@ body {
 .middle-panel {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 180px;
   overflow: hidden;
   background: var(--c-surface);
@@ -366,6 +366,7 @@ body {
 /* ── Picker scope bar ── */
 .picker-scope-bar {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
@@ -373,6 +374,15 @@ body {
   border-bottom: 1px solid var(--c-border);
   font-size: 11px;
   flex-shrink: 0;
+}
+.picker-scope-overlay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(232,113,10,0.12);
+  border-radius: 6px;
+  flex: 1; min-width: 0; overflow: hidden;
 }
 .picker-scope-icon { font-size: 13px; flex-shrink: 0; }
 .picker-scope-info { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
@@ -424,11 +434,18 @@ body {
 .resize-handle:hover,
 .resize-handle.dragging { background: var(--c-primary); }
 
+/* Global resize cursor during drag */
+body.resizing,
+body.resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
 /* ════════════════════════════════════════
    DETAIL PANEL (right)
 ════════════════════════════════════════ */
 .detail-panel {
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 200px;
   overflow-y: auto;
   background: var(--c-surface2);
