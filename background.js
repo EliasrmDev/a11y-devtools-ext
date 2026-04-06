@@ -55,6 +55,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return true;
 
     case MSG.HIGHLIGHT_ELEMENT:
+    case MSG.HIGHLIGHT_NO_SCROLL:
     case MSG.UNHIGHLIGHT_ALL:
     case MSG.SCROLL_TO_ELEMENT:
       ensureContentScript(msg.tabId)

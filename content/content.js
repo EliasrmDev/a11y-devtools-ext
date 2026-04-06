@@ -63,6 +63,7 @@ const IMPACT_COLORS = {
 })();
 
 const overlays = new Map(); // selector → {overlay, tooltip}
+let pendingHighlightCallback = null; // Track pending highlight operations
 
 function getRect(el) {
   const r = el.getBoundingClientRect();
@@ -126,6 +127,12 @@ function positionTooltip(overlay, tooltip, rect) {
 }
 
 function unhighlightAll() {
+  // Cancel any pending highlight callback
+  if (pendingHighlightCallback) {
+    pendingHighlightCallback.cancel();
+    pendingHighlightCallback = null;
+  }
+
   for (const { overlay, tooltip } of overlays.values()) {
     overlay.remove();
     tooltip.remove();
@@ -143,10 +150,11 @@ function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-// Helper function to wait for scroll to complete
+// Helper function to wait for scroll to complete with cancellation support
 function waitForScrollEnd(element, callback, maxWait = 1000) {
   let timeout;
   let scrollEndTimer;
+  let cancelled = false;
 
   const cleanup = () => {
     if (timeout) clearTimeout(timeout);
@@ -155,17 +163,22 @@ function waitForScrollEnd(element, callback, maxWait = 1000) {
   };
 
   const onScroll = () => {
+    if (cancelled) return;
     if (scrollEndTimer) clearTimeout(scrollEndTimer);
     scrollEndTimer = setTimeout(() => {
-      cleanup();
-      callback();
-    }, 150); // Wait 150ms after last scroll event
+      if (!cancelled) {
+        cleanup();
+        callback();
+      }
+    }, 200); // Wait 200ms after last scroll event
   };
 
   // Fallback timeout
   timeout = setTimeout(() => {
-    cleanup();
-    callback();
+    if (!cancelled) {
+      cleanup();
+      callback();
+    }
   }, maxWait);
 
   // Listen for scroll events
@@ -173,19 +186,34 @@ function waitForScrollEnd(element, callback, maxWait = 1000) {
 
   // Start the timer immediately in case scroll doesn't fire
   onScroll();
+
+  // Return cancellation interface
+  return {
+    cancel: () => {
+      cancelled = true;
+      cleanup();
+    }
+  };
 }
 
 // Message listener (MSG constants inlined to avoid importScripts complexity)
 chrome.runtime.onMessage.addListener((msg) => {
   switch (msg.type) {
     case 'HIGHLIGHT_ELEMENT':
+      // Cancel any pending highlight operation first
+      if (pendingHighlightCallback) {
+        pendingHighlightCallback.cancel();
+        pendingHighlightCallback = null;
+      }
+
       // First scroll to element, then create overlay after scroll completes
       try {
         const el = document.querySelector(msg.selector);
         if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.scrollIntoView({block: 'center'});
           // Wait for scroll to complete before creating overlay
-          waitForScrollEnd(el, () => {
+          pendingHighlightCallback = waitForScrollEnd(el, () => {
+            pendingHighlightCallback = null;
             createOverlay(msg.selector, msg.impact, msg.description, msg.help);
             activateOverlay(msg.selector);
           });
@@ -198,6 +226,12 @@ chrome.runtime.onMessage.addListener((msg) => {
         createOverlay(msg.selector, msg.impact, msg.description, msg.help);
         activateOverlay(msg.selector);
       }
+      break;
+
+    case 'HIGHLIGHT_NO_SCROLL':
+      // Highlight without scrolling
+      createOverlay(msg.selector, msg.impact, msg.description, msg.help);
+      activateOverlay(msg.selector);
       break;
 
     case 'UNHIGHLIGHT_ALL':

@@ -166,7 +166,7 @@ function showLoading(show) {
 }
 
 function escHtml(str) {
-  if (!str) return '';
+  if (!str || typeof str !== 'string') return '';
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
@@ -1002,6 +1002,23 @@ function highlightSelector(selector, impact, description, help) {
   state.highlightedSelectors.add(selector);
 }
 
+function highlightSelectorNoScroll(selector, impact, description, help) {
+  clearHighlights();
+  safeSendMessage({
+    type: MSG.HIGHLIGHT_NO_SCROLL,
+    tabId: tabId(), selector, impact, description, help,
+  });
+  state.highlightedSelectors.add(selector);
+}
+
+function addHighlightNoScroll(selector, impact, description, help) {
+  safeSendMessage({
+    type: MSG.HIGHLIGHT_NO_SCROLL,
+    tabId: tabId(), selector, impact, description, help,
+  });
+  state.highlightedSelectors.add(selector);
+}
+
 function inspectInDomTree(selector) {
   const escaped = selector.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
   chrome.devtools.inspectedWindow.eval(
@@ -1135,12 +1152,15 @@ function selectRule(rIdx) {
   renderIssueList();
   renderDetail();
 
-  // Auto-highlight all nodes for this rule
+  // Auto-highlight all nodes for this rule (without scrolling) only if expanded
   const rules = getActiveRules();
   const rule  = rules[rIdx];
-  if (rule) {
+  if (rule && rule.nodes.length > 0 && state.expandedGroups.has(rIdx)) {
     clearHighlights();
-    rule.nodes.forEach(n => highlightSelector(n.primarySelector, rule.impact, rule.description, rule.help));
+    rule.nodes.forEach(n => addHighlightNoScroll(n.primarySelector || n.selector, rule.impact, rule.description, rule.help));
+  } else {
+    // Clear highlights if accordion is closed
+    clearHighlights();
   }
 }
 
@@ -1152,8 +1172,7 @@ function selectNode(rIdx, nIdx) {
   const rule  = rules[rIdx];
   const node  = rule?.nodes[nIdx];
   if (node) {
-    clearHighlights();
-    highlightSelector(node.primarySelector, rule.impact, rule.description, rule.help);
+    highlightSelector(node.primarySelector || node.selector, rule.impact, rule.description, rule.help);
   }
 
   renderIssueList();
@@ -1381,12 +1400,12 @@ function renderDetail() {
       <div class="node-detail-item ${isActive ? 'active-node' : ''}" data-node-idx="${i}">
         <div class="nd-selector">
           <span style="color:var(--c-sub)">#${i+1}</span>
-          <button class="nd-hl-btn" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.primarySelector || node.selector)}</button>
+          <button class="nd-hl-btn" data-hl-sel="${escHtml(node.primarySelector || node.selector || '')}" title="Click to highlight">${escHtml(node.primarySelector || node.selector || '')}</button>
           <span style="flex:1"></span>
-          <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector)}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">${i18n.t('detail_inspect_dom')}</button>
+          <button class="nd-nav" data-action="inspect" data-sel="${escHtml(node.primarySelector || node.selector || '')}" style="display:inline;padding:1px 5px;font-size:9px;border:1px solid var(--c-border);border-radius:2px;background:var(--c-surface);color:var(--c-text);cursor:pointer">${i18n.t('detail_inspect_dom')}</button>
         </div>
-        ${node.html ? `<div class="nd-html" data-hl-sel="${escHtml(node.primarySelector)}" title="Click to highlight">${escHtml(node.html)}</div>` : ''}
-        ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary)}</div>` : ''}
+        ${node.html ? `<div class="nd-html" data-hl-sel="${escHtml(node.primarySelector || node.selector || '')}" title="Click to highlight">${escHtml(node.html || '')}</div>` : ''}
+        ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary || '')}</div>` : ''}
         ${isActive ? renderChecksSection(node) : ''}
         ${isActive ? `<div class="ai-fix-section" data-node-idx="${i}">
           <button class="ai-fix-btn">${i18n.t('ai_suggest_fix')}</button>
@@ -1459,7 +1478,7 @@ function renderDetail() {
   const btnHl = $('btn-highlight-all');
   if (btnHl) btnHl.addEventListener('click', () => {
     clearHighlights();
-    rule.nodes.forEach(n => highlightSelector(n.primarySelector, rule.impact, rule.description, rule.help));
+    rule.nodes.forEach(n => addHighlightNoScroll(n.primarySelector || n.selector, rule.impact, rule.description, rule.help));
   });
 
   const btnCl = $('btn-clear-hl');
