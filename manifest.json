@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "a11y DevTools",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Advanced accessibility testing powered by axe-core",
 
   "permissions": [
