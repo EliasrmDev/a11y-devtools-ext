@@ -252,6 +252,9 @@ body {
 .btn-small { font-size: 10px; padding: 3px 8px; border-radius: 4px; }
 .btn.picker-active { background: rgba(91,141,238,0.2); color: var(--c-primary); border-color: rgba(91,141,238,0.4); }
 
+.btn-green { color: var(--c-text); border-color: var(--c-secondary); }
+
+.btn-orange { color: var(--c-text); border-color: #e8710a; }
 /* ════════════════════════════════════════
    MIDDLE PANEL
 ════════════════════════════════════════ */

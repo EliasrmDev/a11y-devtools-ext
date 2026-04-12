@@ -99,7 +99,7 @@ async function ensureContentScript(tabId) {
 async function ensurePickerScript(tabId) {
   try {
     await chrome.scripting.executeScript({
-      target: { tabId },
+      target: { tabId, allFrames: true },
       files: ['content/picker.js'],
     });
   } catch (_) { /* tab may not be scriptable */ }
@@ -232,7 +232,7 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
   const runOptions = { reporter: 'v2', runOnly };
 
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
+    target: { tabId, allFrames: true },
     world: 'MAIN',
     args: [selector, runOptions],
     func: (sel, options) =>
@@ -242,21 +242,38 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
         try { target = document.querySelector(sel); } catch (_) {}
         if (!target) return reject(new Error('Element not found: ' + sel));
 
-        // Setup axe virtual tree rooted at this element for partial analysis
-        axe.setup(target);
-
+        // Run axe on the entire document to catch landmark and iframe issues
         axe.run(
-          target,
+          document,
           options,
           (err, results) => {
-            // Teardown virtual tree
-            try { axe.teardown(); } catch (_) {}
             if (err) return reject(err);
+
+            // Filter results to only include violations/passes/etc that affect the target element or its children
+            function filterResultsForTarget(resultArray) {
+              return resultArray.map(item => {
+                // Filter nodes to only include those within the target element
+                const filteredNodes = item.nodes.filter(node => {
+                  return node.target.some(targetSelector => {
+                    try {
+                      const nodeElement = document.querySelector(targetSelector);
+                      return nodeElement && (target === nodeElement || target.contains(nodeElement));
+                    } catch (_) {
+                      return false;
+                    }
+                  });
+                });
+
+                // Return item with filtered nodes, or null if no nodes match
+                return filteredNodes.length > 0 ? { ...item, nodes: filteredNodes } : null;
+              }).filter(Boolean);
+            }
+
             resolve({
-              violations:   results.violations,
-              passes:       results.passes,
-              incomplete:   results.incomplete,
-              inapplicable: results.inapplicable,
+              violations:   filterResultsForTarget(results.violations),
+              passes:       filterResultsForTarget(results.passes),
+              incomplete:   filterResultsForTarget(results.incomplete),
+              inapplicable: filterResultsForTarget(results.inapplicable),
               timestamp:    new Date().toISOString(),
               url:          location.href,
               elementSelector: sel,
