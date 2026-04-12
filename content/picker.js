@@ -21,6 +21,7 @@ window.__a11yPickerLoaded = true;
     hover:    { border: '#1a73e8', bg: 'rgba(26,115,232,0.08)',  label: '#1a73e8' },
     selected: { border: '#0d652d', bg: 'rgba(13,101,45,0.10)',   label: '#0d652d' },
     scope:    { border: '#e8710a', bg: 'rgba(232,113,10,0.07)',  label: '#e8710a' },
+    iframe:   { border: '#dc3545', bg: 'rgba(220,53,69,0.10)',   label: '#dc3545' },
   };
 
   // ─────────────────────────────────────────
@@ -329,8 +330,14 @@ window.__a11yPickerLoaded = true;
     const sLbl  = getLabel('selected');
     const selSlot = hasScope ? -1 : 0;
     if (hasSelected) {
-      positionBox(sBox, sLbl, selectedEl, COLORS.selected, selSlot);
-      sLbl.textContent = elementLabel(selectedEl);
+      // Check if selected element is iframe - show in red with security message
+      if (selectedEl.tagName === 'IFRAME') {
+        positionBox(sBox, sLbl, selectedEl, COLORS.iframe, selSlot);
+        sLbl.textContent = '🚫 ' + elementLabel(selectedEl) + ' — Not allowed for security reasons';
+      } else {
+        positionBox(sBox, sLbl, selectedEl, COLORS.selected, selSlot);
+        sLbl.textContent = elementLabel(selectedEl);
+      }
     } else {
       sBox.style.display  = 'none';
       sLbl.style.display = 'none';
@@ -341,8 +348,14 @@ window.__a11yPickerLoaded = true;
     const hLbl  = getLabel('hover');
     const hoverSlot = (hasScope ? -1 : 0) + (hasSelected ? 1 : 0);
     if (hasHover) {
-      positionBox(hBox, hLbl, hoverEl, COLORS.hover, hoverSlot);
-      hLbl.textContent = elementLabel(hoverEl);
+      // Check if hovered element is iframe - show in red with security message
+      if (hoverEl.tagName === 'IFRAME') {
+        positionBox(hBox, hLbl, hoverEl, COLORS.iframe, hoverSlot);
+        hLbl.textContent = '🚫 ' + elementLabel(hoverEl) + ' — Not allowed for security reasons';
+      } else {
+        positionBox(hBox, hLbl, hoverEl, COLORS.hover, hoverSlot);
+        hLbl.textContent = elementLabel(hoverEl);
+      }
     } else {
       hBox.style.display  = 'none';
       hLbl.style.display = 'none';
@@ -383,6 +396,22 @@ window.__a11yPickerLoaded = true;
 
     selectedEl = el;
     hoverEl    = null;
+
+    // Check if element is iframe - not allowed for security reasons
+    if (selectedEl.tagName === 'IFRAME') {
+      scopeEl = null;
+      scopeReason = 'security';
+      notifyPanel('PICKER_SELECTED', {
+        selector:      buildSelector(selectedEl),
+        scopeSelector: null,
+        scopeReason:   'security',
+        label:         elementLabel(selectedEl),
+        scopeLabel:    '',
+        isIframe:      true,
+        securityBlocked: true,
+      });
+      return;
+    }
 
     // Detect scope
     const scope = detectScope(selectedEl);

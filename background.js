@@ -99,7 +99,7 @@ async function ensureContentScript(tabId) {
 async function ensurePickerScript(tabId) {
   try {
     await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
+      target: { tabId },
       files: ['content/picker.js'],
     });
   } catch (_) { /* tab may not be scriptable */ }
@@ -232,7 +232,7 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
   const runOptions = { reporter: 'v2', runOnly };
 
   const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId, allFrames: true },
+    target: { tabId },
     world: 'MAIN',
     args: [selector, runOptions],
     func: (sel, options) =>
