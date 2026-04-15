@@ -5,7 +5,7 @@
   --c-surface:  #0c1018;
   --c-border:   rgba(255,255,255,0.08);
   --c-text:     #e4e8f0;
-  --c-sub:      #7a8499;
+  --c-sub:      #dfdfdf;
   --c-critical: #ff5050;
   --c-serious:  #ffa032;
   --c-moderate: #ffd232;
@@ -118,6 +118,18 @@ header {
   border-radius: var(--radius);
   padding: 10px 6px;
   text-align: center;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color .15s, background .15s;
+}
+.stat-box:hover:not(.active) {
+  border-color: rgba(91,141,238,0.4);
+  background: rgba(91,141,238,0.06);
+}
+.stat-box.active {
+  border-color: var(--c-primary);
+  background: rgba(91,141,238,0.12);
 }
 .stat-num  { display: block; font-size: 20px; font-weight: 700; color: var(--c-critical); }
 .stat-num.pass { color: var(--c-pass); }
