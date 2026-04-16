@@ -1182,30 +1182,89 @@ function selectNode(rIdx, nIdx) {
 // ─────────────────────────────────────────────
 // AI Suggest Fix (Chrome Built-in AI / Prompt API)
 // ─────────────────────────────────────────────
-function buildFixPrompt(rule, node, domContext) {
-  const messages = [];
+function formatPromptValue(value) {
+  if (value === null || value === undefined || value === '') return 'N/A';
+  if (typeof value === 'string') return value;
+  try {
+    return JSON.stringify(value);
+  } catch (_) {
+    return String(value);
+  }
+}
+
+function buildChecksPrompt(node) {
+  const lines = [];
+
   for (const group of (node.checks || [])) {
-    for (const c of group.checks) {
-      messages.push(`[${group.type}] ${c.message}`);
+    for (const check of (group.checks || [])) {
+      const parts = [
+        `group=${group.type || 'unknown'}`,
+        `id=${check.id || 'unknown'}`,
+        `impact=${check.impact || node.impact || 'unknown'}`,
+      ];
+
+      if (check.message) parts.push(`message=${check.message}`);
+
+      if (check.data && typeof check.data === 'object') {
+        const dataEntries = Object.entries(check.data)
+          .filter(([, value]) => value !== null && value !== undefined && value !== '')
+          .map(([key, value]) => `${key}=${formatPromptValue(value)}`);
+        if (dataEntries.length) parts.push(`data={${dataEntries.join(', ')}}`);
+      } else if (check.data) {
+        parts.push(`data=${formatPromptValue(check.data)}`);
+      }
+
+      if (Array.isArray(check.relatedNodes) && check.relatedNodes.length) {
+        const related = check.relatedNodes
+          .map(relatedNode => {
+            const target = formatPromptValue(relatedNode.target || relatedNode.selector || 'unknown');
+            const html = relatedNode.html ? ` html=${formatPromptValue(relatedNode.html)}` : '';
+            return `${target}${html}`;
+          })
+          .join(' | ');
+        parts.push(`related=[${related}]`);
+      }
+
+      lines.push(`- ${parts.join(' ; ')}`);
     }
   }
 
-  return `You are an accessibility expert. Fix the issue with minimal output.
+  if (node.failureSummary) {
+    lines.push(`- failureSummary=${node.failureSummary}`);
+  }
 
-Rule: ${rule.id} — ${rule.description}
-HTML: ${node.html || 'N/A'}
-Selector: ${node.selector || 'N/A'}
-Issues:
-${messages.join('; ')}
+  return lines.length ? lines.join('\n') : '- No detailed axe-core checks were provided.';
+}
 
-Output:
-- 1 short explanation (max 15 words)
-- 1 fix (code or steps)
+function buildFixPrompt(rule, node, domContext) {
+  const domContextBlock = domContext ? `DOM context:\n${formatPromptValue(domContext)}\n\n` : '';
 
-Rules:
-- Be direct, no extra text
-- Prefer code fix if possible
-- Use valid HTML`
+  return `Generate the smallest valid accessibility remediation for this axe-core finding.
+
+Use the structured finding data as the source of truth. Infer the root cause from the check data, related nodes, and failing metrics, not only from the human-readable message.
+
+Finding:
+- Rule id: ${rule.id || 'N/A'}
+- Description: ${rule.description || 'N/A'}
+- Help: ${rule.help || 'N/A'}
+- Help URL: ${rule.helpUrl || 'N/A'}
+- Impact: ${rule.impact || node.impact || 'N/A'}
+- Selector: ${node.selector || 'N/A'}
+- HTML snippet: ${node.html || 'N/A'}
+${node.failureSummary ? `- Failure summary: ${node.failureSummary}\n` : ''}${domContextBlock}Checks:
+${buildChecksPrompt(node)}
+
+Requirements:
+- Return only the final remediation. No explanation, no analysis, no headings.
+- Prefer a corrected code snippet when the failing markup can be fixed directly.
+- If HTML alone is insufficient, return the smallest exact CSS or JS change needed.
+- Preserve unrelated attributes and behavior.
+- Do not repeat or preserve any attribute, style, ARIA usage, relationship, label source, or value that the finding identifies as failing.
+- If a metric fails, such as contrast ratio, target size, timeout, or name/role/value data, change the offending values so the result satisfies the requirement instead of repeating the failing values.
+- Prefer native semantic HTML over ARIA when possible.
+- If the problem is missing accessible name, label, alt text, role, state, relationship, focus handling, keyboard support, language, heading structure, table association, form association, media alternative, or document landmark, fix that exact root cause.
+- If the snippet is partial, return only the minimal changed snippet or minimal concrete steps.
+- Output must be valid, implementation-ready, and concise.`;
 }
 
 function suggestAIFix(rule, node, containerEl) {
@@ -1226,8 +1285,8 @@ function suggestAIFix(rule, node, containerEl) {
 }
 
 function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
-  const prompt = buildFixPrompt(rule, node);
-  const systemPrompt = 'You are a concise web accessibility remediation assistant. Respond only with the fix. Use markdown.';
+  const prompt = buildFixPrompt(rule, node, domContext);
+  const systemPrompt = 'You are an expert axe-core accessibility remediation assistant. Produce only the final fix in markdown. Use structured finding data as the source of truth. Fix the root cause, not the symptom. Never repeat a value or attribute that the finding marks as failing. Prefer minimal valid code changes and native semantic HTML when possible.';
 
   const port = chrome.runtime.connect({ name: 'ai-fix' });
 
