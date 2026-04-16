@@ -1,4 +1,9 @@
-importScripts('shared/messaging.js');
+importScripts(
+  'shared/messaging.js',
+  'shared/ai-common.js',
+  'background/ai-settings.js',
+  'background/ai-service.js'
+);
 
 // tabId → { results, timestamp }
 const scanCache = new Map();
@@ -34,6 +39,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ cached });
       break;
     }
+
+    case MSG.GET_AI_SETTINGS:
+    case MSG.SAVE_AI_SETTINGS:
+    case MSG.TEST_AI_PROVIDER:
+    case MSG.CLEAR_AI_SECRET:
+      A11yAIService.handleMessage(msg)
+        .then(data => sendResponse(data))
+        .catch(err => sendResponse({
+          ok: false,
+          error: err?.message || String(err),
+          details: err?.details,
+        }));
+      return true;
 
     case MSG.SCAN_ELEMENT:
       handleScanElement(msg.tabId, msg.selector, {
@@ -289,61 +307,5 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
 // ── AI Suggest Fix (Chrome Built-in AI via port) ──
 
 chrome.runtime.onConnect.addListener(port => {
-  if (port.name !== 'ai-fix') return;
-  port.onMessage.addListener(async (msg) => {
-    try {
-      if (!self.LanguageModel) {
-        port.postMessage({ type: 'error', error: 'not-available' });
-        return;
-      }
-      const availability = await LanguageModel.availability();
-      if (availability === 'unavailable') {
-        port.postMessage({ type: 'error', error: 'not-available' });
-        return;
-      }
-
-      // If model needs downloading, create with monitor callback and report progress
-      const createOpts = { systemPrompt: msg.systemPrompt || '' };
-      if (availability === 'downloadable') {
-        port.postMessage({ type: 'downloading', loaded: 0, total: 1 });
-        createOpts.monitor = (m) => {
-          m.addEventListener('downloadprogress', (e) => {
-            port.postMessage({ type: 'downloading', loaded: e.loaded, total: e.total });
-          });
-        };
-      }
-
-      const session = await LanguageModel.create(createOpts);
-
-      port.postMessage({ type: 'status', message: '🔧 Generating fix…' });
-
-      // Stream response — send chunks to panel for live preview
-      let lastResponse = '';
-      const stream = session.promptStreaming(msg.prompt);
-      const reader = stream.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        // promptStreaming may return cumulative or delta
-        if (typeof value === 'string') {
-          if (value.length >= lastResponse.length && value.startsWith(lastResponse)) {
-            lastResponse = value;
-          } else {
-            lastResponse += value;
-          }
-        }
-        port.postMessage({ type: 'chunk', text: lastResponse });
-      }
-
-      if (!lastResponse.trim()) {
-        port.postMessage({ type: 'status', message: '⚠ AI returned empty response' });
-      }
-
-      session.destroy();
-      port.postMessage({ type: 'result', text: lastResponse });
-      port.postMessage({ type: 'done' });
-    } catch (err) {
-      port.postMessage({ type: 'error', error: err.message || String(err) });
-    }
-  });
+  A11yAIService.handlePort(port);
 });

@@ -687,6 +687,99 @@ body.resizing * {
 .tag { font-size: 9px; padding: 2px 7px; background: rgba(255,255,255,0.04); border: 1px solid var(--c-border); border-radius: 10px; color: var(--c-sub); }
 
 /* ════════════════════════════════════════
+   AI SETTINGS
+════════════════════════════════════════ */
+.ai-settings-panel {
+  width: min(720px, 100%);
+  max-height: min(88vh, 760px);
+}
+.ai-settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+}
+.ai-settings-note {
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: rgba(255,255,255,0.03);
+  color: var(--c-sub);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.ai-settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: rgba(91,141,238,0.04);
+}
+.ai-settings-toggle input {
+  margin-top: 3px;
+}
+.ai-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ai-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ai-settings-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.ai-settings-help {
+  font-size: 10px;
+  color: var(--c-sub);
+  line-height: 1.4;
+}
+.ai-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.ai-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: rgba(255,255,255,0.03);
+}
+.ai-status-label {
+  font-size: 10px;
+  color: var(--c-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.ai-status-value {
+  font-size: 12px;
+  color: var(--c-text);
+  font-weight: 600;
+}
+.ai-provider-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-settings-status {
+  min-height: 18px;
+  font-size: 11px;
+  color: var(--c-sub);
+}
+.ai-settings-status.is-error { color: var(--c-error); }
+.ai-settings-status.is-success { color: var(--c-success); }
+.ai-settings-status.is-info { color: var(--c-info); }
+
+/* ════════════════════════════════════════
    AI SUGGEST FIX
 ════════════════════════════════════════ */
 .ai-fix-section { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--c-border); }
@@ -694,6 +787,26 @@ body.resizing * {
 .ai-fix-btn:hover { filter: brightness(1.15); }
 .ai-fix-btn:disabled { opacity: 0.6; cursor: wait; }
 .ai-fix-output { margin-top: 6px; padding: 8px 10px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 5px; font-size: 11px; color: var(--c-text); line-height: 1.5; overflow-x: auto; }
+.ai-fix-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.ai-provider-badge,
+.ai-confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border-md);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.ai-provider-badge { color: var(--c-primary-l); background: rgba(91,141,238,0.1); }
+.ai-confidence-badge { color: var(--c-text); background: rgba(255,255,255,0.05); }
+.ai-fix-block + .ai-fix-block { margin-top: 8px; }
+.ai-fix-label { display: block; margin-bottom: 3px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--c-sub); }
+.ai-fix-text { white-space: pre-wrap; }
+.ai-fix-warnings { margin-top: 8px; padding-left: 16px; color: var(--c-warn); }
+.ai-fix-warnings li + li { margin-top: 3px; }
+.ai-open-settings-btn { margin-top: 8px; }
 .ai-fix-output code.ai-inline-code { background: rgba(110,64,201,0.12); padding: 1px 4px; border-radius: 2px; font-size: 10px; font-family: 'Menlo','Consolas',monospace; }
 .ai-fix-output pre.ai-code-block { position: relative; background: rgba(255,255,255,0.03); border: 1px solid var(--c-border); border-radius: 5px; padding: 8px 10px; margin: 6px 0; overflow-x: auto; white-space: pre; font-size: 10px; line-height: 1.4; font-family: 'Menlo','Consolas',monospace; }
 .ai-copy-btn { position: absolute; top: 4px; right: 4px; background: var(--c-surface); border: 1px solid var(--c-border-md); border-radius: 3px; padding: 2px 5px; font-size: 10px; cursor: pointer; opacity: 0; transition: opacity 0.15s; }

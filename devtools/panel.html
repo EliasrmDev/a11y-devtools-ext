@@ -41,6 +41,7 @@
           <span data-i18n="btn_export_json">Export</span>
         </button>
       </div>
+      <button id="btn-ai-settings" class="btn btn-full" type="button" data-i18n="btn_ai_settings">AI Settings</button>
     </div>
 
     <!-- Score ring -->
@@ -170,7 +171,7 @@
 </div><!-- /panel-main -->
 
 <!-- ══════════ STATUS BAR ══════════ -->
-<div class="statusbar" id="statusbar">
+<div class="statusbar" id="statusbar" role="status" aria-live="polite">
   <span id="status-text" data-i18n="status_ready">Ready</span>
   <select id="lang-select" class="lang-select" title="Language / Idioma / Langue / Sprache">
     <option value="en">English</option>
@@ -179,6 +180,86 @@
     <option value="de">Deutsch</option>
     <option value="pt">Português</option>
   </select>
+</div>
+
+<!-- ══════════ AI SETTINGS MODAL ══════════ -->
+<div id="ai-settings-modal" class="scan-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ai-settings-title">
+  <div class="scan-modal-panel ai-settings-panel">
+    <div class="scan-modal-header">
+      <h2 id="ai-settings-title" data-i18n="ai_settings_title">AI Settings</h2>
+      <div class="btn-group">
+        <button id="btn-ai-settings-close" class="btn" type="button" data-i18n-aria-label="btn_close_modal" aria-label="Close">✕</button>
+      </div>
+    </div>
+
+    <div class="ai-settings-body">
+      <div class="ai-settings-note" data-i18n="ai_settings_notice_external">External providers receive a limited finding payload from the browser when you request a fix suggestion.</div>
+      <div class="ai-settings-note" data-i18n="ai_settings_notice_accounts">ChatGPT Plus and Claude Pro subscriptions do not include API access. You need a platform API key.</div>
+      <div class="ai-settings-note" data-i18n="ai_settings_notice_storage">API keys are stored locally in chrome.storage.local on this device. Anyone with access to this browser profile may be able to use them.</div>
+
+      <label class="ai-settings-toggle" for="ai-enabled">
+        <input id="ai-enabled" type="checkbox">
+        <span>
+          <span class="ai-settings-label" data-i18n="ai_settings_enable_label">Enable AI fix suggestions</span>
+          <span class="ai-settings-help" data-i18n="ai_settings_enable_help">Disabling this keeps scanning features working and only turns off AI suggestions.</span>
+        </span>
+      </label>
+
+      <div class="ai-settings-grid">
+        <label class="ai-settings-field" for="ai-provider-select">
+          <span class="ai-settings-label" data-i18n="ai_provider_label">Provider</span>
+          <select id="ai-provider-select" class="select"></select>
+        </label>
+
+        <label class="ai-settings-field" for="ai-fallback-mode">
+          <span class="ai-settings-label" data-i18n="ai_fallback_label">Fallback mode</span>
+          <select id="ai-fallback-mode" class="select">
+            <option value="builtin_only" data-i18n="ai_fallback_builtin_only">Built-in only</option>
+            <option value="remote_only" data-i18n="ai_fallback_remote_only">Remote only</option>
+            <option value="builtin_then_remote" data-i18n="ai_fallback_builtin_then_remote">Built-in then remote</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="ai-status-grid" aria-live="polite">
+        <div class="ai-status-card">
+          <span class="ai-status-label" data-i18n="ai_status_builtin">Chrome Built-in AI</span>
+          <span id="ai-built-in-status" class="ai-status-value"></span>
+        </div>
+        <div class="ai-status-card">
+          <span class="ai-status-label" data-i18n="ai_status_selected">Selected provider</span>
+          <span id="ai-provider-status" class="ai-status-value"></span>
+        </div>
+      </div>
+
+      <div id="ai-provider-config" class="ai-provider-config">
+        <label class="ai-settings-field" for="ai-model-input">
+          <span class="ai-settings-label" data-i18n="ai_model_label">Model</span>
+          <input id="ai-model-input" class="search-input" type="text" autocomplete="off" spellcheck="false">
+        </label>
+
+        <label id="ai-base-url-field" class="ai-settings-field hidden" for="ai-base-url-input">
+          <span class="ai-settings-label" data-i18n="ai_base_url_label">Base URL</span>
+          <input id="ai-base-url-input" class="search-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/v1">
+          <span class="ai-settings-help" data-i18n="ai_base_url_help">Use the provider base URL or a full chat completions endpoint.</span>
+        </label>
+
+        <label id="ai-api-key-field" class="ai-settings-field" for="ai-api-key-input">
+          <span class="ai-settings-label" data-i18n="ai_api_key_label">API key</span>
+          <input id="ai-api-key-input" class="search-input" type="password" autocomplete="new-password" spellcheck="false">
+          <span id="ai-api-key-help" class="ai-settings-help"></span>
+        </label>
+      </div>
+
+      <div id="ai-settings-status" class="ai-settings-status" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="scan-modal-footer">
+      <button id="btn-ai-clear-secret" class="btn" type="button" data-i18n="ai_clear_credentials">Clear Credentials</button>
+      <button id="btn-ai-test" class="btn" type="button" data-i18n="ai_test_connection">Test Connection</button>
+      <button id="btn-ai-save" class="btn btn-primary" type="button" data-i18n="ai_save_settings">Save Settings</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════ SCAN RULES MODAL ══════════ -->
@@ -229,6 +310,7 @@
 
 <script src="../i18n/i18n.js"></script>
 <script src="../shared/messaging.js"></script>
+<script src="../shared/ai-common.js"></script>
 <script src="../core/scoring.js"></script>
 <script src="../core/formatter.js"></script>
 <script src="panel.js"></script>

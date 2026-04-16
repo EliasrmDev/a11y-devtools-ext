@@ -1,5 +1,5 @@
 'use strict';
-/* global MSG, computeScore, scoreColor, formatResults, countsByImpact */
+/* global MSG, A11yAICommon, computeScore, scoreColor, formatResults, countsByImpact */
 
 // ─────────────────────────────────────────────
 // State
@@ -35,6 +35,11 @@ const state = {
   pickerScopeLabel: '',
   lastScanTarget: null,
   lastScanConfig: null,
+  aiSettings: null,
+  aiBuiltIn: null,
+  aiProviders: [],
+  aiSettingsFocusReturn: null,
+  aiSettingsLoaded: false,
 };
 
 // ─────────────────────────────────────────────
@@ -967,6 +972,211 @@ function openScanModalFlow() {
     });
 }
 
+function getFocusableElements(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )).filter((element) => !element.disabled && !element.closest('.hidden'));
+}
+
+function setAISettingsStatus(message, tone) {
+  const statusEl = $('ai-settings-status');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.classList.remove('is-error', 'is-success', 'is-info');
+  if (tone) statusEl.classList.add(`is-${tone}`);
+}
+
+function renderAISettingsModal() {
+  if (!state.aiSettings) return;
+
+  const settings = state.aiSettings;
+  const providerId = settings.selectedProvider || 'builtin';
+  const provider = settings.providers[providerId] || {};
+  const builtIn = state.aiBuiltIn || { label: i18n.t('ai_status_unknown') };
+  const providerLabel = state.aiProviders.find((item) => item.id === providerId)?.label || providerId;
+
+  const providerSelect = $('ai-provider-select');
+  if (providerSelect && providerSelect.options.length === 0) {
+    providerSelect.innerHTML = state.aiProviders.map((providerOption) =>
+      `<option value="${escHtml(providerOption.id)}">${escHtml(providerOption.label)}</option>`
+    ).join('');
+  }
+
+  $('ai-enabled').checked = settings.enabled !== false;
+  $('ai-provider-select').value = providerId;
+  $('ai-fallback-mode').value = settings.fallbackMode || 'builtin_only';
+  $('ai-model-input').value = provider.model || '';
+  $('ai-base-url-input').value = provider.baseUrl || '';
+  $('ai-api-key-input').value = '';
+
+  const isBuiltin = providerId === 'builtin';
+  const fallbackSelect = $('ai-fallback-mode');
+  const providerConfigEl = $('ai-provider-config');
+  const apiKeyField = $('ai-api-key-field');
+  const baseUrlField = $('ai-base-url-field');
+  const apiKeyHelp = $('ai-api-key-help');
+
+  fallbackSelect.disabled = isBuiltin;
+  if (isBuiltin) fallbackSelect.value = 'builtin_only';
+
+  providerConfigEl.classList.toggle('hidden', isBuiltin);
+  apiKeyField.classList.toggle('hidden', isBuiltin);
+  baseUrlField.classList.toggle('hidden', providerId !== 'custom');
+
+  if (!isBuiltin) {
+    if (provider.hasApiKey) {
+      apiKeyHelp.textContent = i18n.t('ai_api_key_stored', { key: provider.maskedApiKey || '••••••••' });
+    } else {
+      apiKeyHelp.textContent = i18n.t('ai_api_key_missing');
+    }
+  } else {
+    apiKeyHelp.textContent = '';
+  }
+
+  $('ai-built-in-status').textContent = builtIn.label || i18n.t('ai_status_unknown');
+
+  const providerStatus = isBuiltin
+    ? builtIn.label
+    : provider.configured
+      ? i18n.t('ai_provider_ready', { provider: providerLabel })
+      : i18n.t('ai_provider_incomplete', { provider: providerLabel });
+  $('ai-provider-status').textContent = providerStatus;
+}
+
+function snapshotAISettingsDraft(providerOverride) {
+  if (!state.aiSettings) return;
+
+  const currentProviderId = providerOverride || state.aiSettings.selectedProvider || 'builtin';
+  const provider = state.aiSettings.providers[currentProviderId] || {};
+
+  state.aiSettings.enabled = $('ai-enabled').checked;
+  state.aiSettings.fallbackMode = $('ai-fallback-mode').value;
+  state.aiSettings.selectedProvider = $('ai-provider-select').value;
+  provider.model = $('ai-model-input').value.trim();
+  provider.baseUrl = $('ai-base-url-input').value.trim();
+  state.aiSettings.providers[currentProviderId] = provider;
+}
+
+function buildAISettingsPayload() {
+  snapshotAISettingsDraft();
+
+  const payload = {
+    settings: {
+      enabled: state.aiSettings.enabled,
+      selectedProvider: state.aiSettings.selectedProvider,
+      fallbackMode: state.aiSettings.selectedProvider === 'builtin'
+        ? 'builtin_only'
+        : state.aiSettings.fallbackMode,
+      providers: {},
+    },
+    secrets: {},
+  };
+
+  Object.entries(state.aiSettings.providers || {}).forEach(([providerId, provider]) => {
+    payload.settings.providers[providerId] = {
+      model: provider.model || '',
+      baseUrl: provider.baseUrl || '',
+    };
+  });
+
+  const providerId = state.aiSettings.selectedProvider;
+  const apiKey = $('ai-api-key-input').value.trim();
+  if (apiKey && providerId !== 'builtin') {
+    payload.secrets[`${providerId}ApiKey`] = apiKey;
+  }
+
+  return payload;
+}
+
+function applyAISettingsResponse(resp) {
+  if (!resp || !resp.settings) return;
+  state.aiSettings = resp.settings;
+  state.aiBuiltIn = resp.builtIn || state.aiBuiltIn;
+  state.aiProviders = resp.providers || state.aiProviders;
+  state.aiSettingsLoaded = true;
+  renderAISettingsModal();
+}
+
+async function loadAISettings(forceRefresh) {
+  if (state.aiSettingsLoaded && !forceRefresh) return;
+
+  setAISettingsStatus(i18n.t('ai_loading_settings'), 'info');
+  const resp = await sendMessageAsync({ type: MSG.GET_AI_SETTINGS });
+  applyAISettingsResponse(resp);
+  setAISettingsStatus('', 'info');
+}
+
+async function openAISettingsModal(triggerEl) {
+  state.aiSettingsFocusReturn = triggerEl || document.activeElement;
+  $('ai-settings-modal').classList.remove('hidden');
+  setAISettingsStatus(i18n.t('ai_loading_settings'), 'info');
+
+  try {
+    await loadAISettings(true);
+    const focusTarget = $('ai-enabled');
+    if (focusTarget) focusTarget.focus();
+  } catch (error) {
+    setAISettingsStatus(i18n.t('runtime_error', { message: error.message }), 'error');
+  }
+}
+
+function closeAISettingsModal() {
+  $('ai-settings-modal').classList.add('hidden');
+  setAISettingsStatus('');
+  if (state.aiSettingsFocusReturn && typeof state.aiSettingsFocusReturn.focus === 'function') {
+    state.aiSettingsFocusReturn.focus();
+  }
+}
+
+async function saveAISettings() {
+  setAISettingsStatus(i18n.t('ai_saving_settings'), 'info');
+  try {
+    const resp = await sendMessageAsync({
+      type: MSG.SAVE_AI_SETTINGS,
+      payload: buildAISettingsPayload(),
+    });
+    applyAISettingsResponse(resp);
+    setAISettingsStatus(i18n.t('ai_settings_saved'), 'success');
+  } catch (error) {
+    setAISettingsStatus(error.message, 'error');
+  }
+}
+
+async function testAIProviderConnection() {
+  setAISettingsStatus(i18n.t('ai_testing_connection'), 'info');
+  try {
+    const resp = await sendMessageAsync({
+      type: MSG.TEST_AI_PROVIDER,
+      payload: buildAISettingsPayload(),
+    });
+    const message = resp && resp.message ? resp.message : i18n.t('ai_test_success_generic');
+    setAISettingsStatus(message, 'success');
+  } catch (error) {
+    setAISettingsStatus(error.message, 'error');
+  }
+}
+
+async function clearAISecret() {
+  const providerId = $('ai-provider-select').value;
+  if (!providerId || providerId === 'builtin') {
+    setAISettingsStatus(i18n.t('ai_clear_no_secret'), 'info');
+    return;
+  }
+
+  setAISettingsStatus(i18n.t('ai_clearing_credentials'), 'info');
+  try {
+    const resp = await sendMessageAsync({
+      type: MSG.CLEAR_AI_SECRET,
+      providerId,
+    });
+    applyAISettingsResponse(resp);
+    setAISettingsStatus(i18n.t('ai_credentials_cleared'), 'success');
+  } catch (error) {
+    setAISettingsStatus(error.message, 'error');
+  }
+}
+
 // ─────────────────────────────────────────────
 // Messaging helper — guards against invalidated extension context
 // ─────────────────────────────────────────────
@@ -988,6 +1198,24 @@ function safeSendMessage(msg, callback) {
       throw e;
     }
   }
+}
+
+function sendMessageAsync(msg) {
+  return new Promise((resolve, reject) => {
+    safeSendMessage(msg, (resp) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (resp && resp.ok === false && resp.error) {
+        const error = new Error(resp.error);
+        error.details = resp.details;
+        reject(error);
+        return;
+      }
+      resolve(resp);
+    });
+  });
 }
 
 // ─────────────────────────────────────────────
@@ -1180,98 +1408,80 @@ function selectNode(rIdx, nIdx) {
 }
 
 // ─────────────────────────────────────────────
-// AI Suggest Fix (Chrome Built-in AI / Prompt API)
+// AI Suggest Fix
 // ─────────────────────────────────────────────
-function formatPromptValue(value) {
-  if (value === null || value === undefined || value === '') return 'N/A';
-  if (typeof value === 'string') return value;
-  try {
-    return JSON.stringify(value);
-  } catch (_) {
-    return String(value);
-  }
+function formatAIResponse(text) {
+  let html = escHtml(text || '');
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
+    `<pre class="ai-code-block"><button class="ai-copy-btn" title="${i18n.t('ai_copy_code')}">📋</button><code>${code.trim()}</code></pre>`
+  );
+  html = html.replace(/\n/g, '<br>');
+  html = html.replace(/<pre([^>]*)>([\s\S]*?)<\/pre>/g, (_, attrs, inner) =>
+    `<pre${attrs}>${inner.replace(/<br>/g, '\n')}</pre>`
+  );
+  return html;
 }
 
-function buildChecksPrompt(node) {
-  const lines = [];
-
-  for (const group of (node.checks || [])) {
-    for (const check of (group.checks || [])) {
-      const parts = [
-        `group=${group.type || 'unknown'}`,
-        `id=${check.id || 'unknown'}`,
-        `impact=${check.impact || node.impact || 'unknown'}`,
-      ];
-
-      if (check.message) parts.push(`message=${check.message}`);
-
-      if (check.data && typeof check.data === 'object') {
-        const dataEntries = Object.entries(check.data)
-          .filter(([, value]) => value !== null && value !== undefined && value !== '')
-          .map(([key, value]) => `${key}=${formatPromptValue(value)}`);
-        if (dataEntries.length) parts.push(`data={${dataEntries.join(', ')}}`);
-      } else if (check.data) {
-        parts.push(`data=${formatPromptValue(check.data)}`);
-      }
-
-      if (Array.isArray(check.relatedNodes) && check.relatedNodes.length) {
-        const related = check.relatedNodes
-          .map(relatedNode => {
-            const target = formatPromptValue(relatedNode.target || relatedNode.selector || 'unknown');
-            const html = relatedNode.html ? ` html=${formatPromptValue(relatedNode.html)}` : '';
-            return `${target}${html}`;
-          })
-          .join(' | ');
-        parts.push(`related=[${related}]`);
-      }
-
-      lines.push(`- ${parts.join(' ; ')}`);
-    }
-  }
-
-  if (node.failureSummary) {
-    lines.push(`- failureSummary=${node.failureSummary}`);
-  }
-
-  return lines.length ? lines.join('\n') : '- No detailed axe-core checks were provided.';
+function renderAIFormattedText(text) {
+  return escHtml(text || '').replace(/\n/g, '<br>');
 }
 
-function buildFixPrompt(rule, node, domContext) {
-  const domContextBlock = domContext ? `DOM context:\n${formatPromptValue(domContext)}\n\n` : '';
+function renderAIResult(normalized, providerId) {
+  const result = normalized || {};
+  const warnings = Array.isArray(result.warnings) ? result.warnings.filter(Boolean) : [];
+  const providerLabel = A11yAICommon.getProviderLabel(providerId || 'builtin');
+  const codeExample = result.codeExample
+    ? `<pre class="ai-code-block"><button class="ai-copy-btn" title="${i18n.t('ai_copy_code')}">📋</button><code>${escHtml(result.codeExample)}</code></pre>`
+    : '';
 
-  return `Generate the smallest valid accessibility remediation for this axe-core finding.
+  return `
+    <div class="ai-fix-disclaimer">${escHtml(i18n.t('ai_disclaimer'))}</div>
+    <div class="ai-fix-meta">
+      <span class="ai-provider-badge">${escHtml(providerLabel)}</span>
+      <span class="ai-confidence-badge">${escHtml(i18n.t('ai_confidence_label'))}: ${escHtml(result.confidence || 'medium')}</span>
+    </div>
+    ${result.shortExplanation ? `<div class="ai-fix-block"><span class="ai-fix-label">${escHtml(i18n.t('ai_short_explanation'))}</span><div class="ai-fix-text">${renderAIFormattedText(result.shortExplanation)}</div></div>` : ''}
+    ${result.userImpact ? `<div class="ai-fix-block"><span class="ai-fix-label">${escHtml(i18n.t('ai_user_impact'))}</span><div class="ai-fix-text">${renderAIFormattedText(result.userImpact)}</div></div>` : ''}
+    ${result.recommendedFix ? `<div class="ai-fix-block"><span class="ai-fix-label">${escHtml(i18n.t('ai_recommended_fix'))}</span><div class="ai-fix-text">${renderAIFormattedText(result.recommendedFix)}</div></div>` : ''}
+    ${codeExample ? `<div class="ai-fix-block"><span class="ai-fix-label">${escHtml(i18n.t('ai_code_example'))}</span>${codeExample}</div>` : ''}
+    ${warnings.length ? `<div class="ai-fix-block"><span class="ai-fix-label">${escHtml(i18n.t('ai_warnings_label'))}</span><ul class="ai-fix-warnings">${warnings.map((warning) => `<li>${escHtml(warning)}</li>`).join('')}</ul></div>` : ''}
+  `;
+}
 
-Use the structured finding data as the source of truth. Infer the root cause from the check data, related nodes, and failing metrics, not only from the human-readable message.
+function renderAIError(errorCode, message) {
+  let hint = message || i18n.t('error_default');
 
-Finding:
-- Rule id: ${rule.id || 'N/A'}
-- Description: ${rule.description || 'N/A'}
-- Help: ${rule.help || 'N/A'}
-- Help URL: ${rule.helpUrl || 'N/A'}
-- Impact: ${rule.impact || node.impact || 'N/A'}
-- Selector: ${node.selector || 'N/A'}
-- HTML snippet: ${node.html || 'N/A'}
-${node.failureSummary ? `- Failure summary: ${node.failureSummary}\n` : ''}${domContextBlock}Checks:
-${buildChecksPrompt(node)}
+  if (errorCode === 'not-available') {
+    hint = i18n.t('ai_error_builtin_unavailable');
+  } else if (errorCode === 'setup-required' || errorCode === 'validation-error') {
+    hint = i18n.t('ai_error_setup_required');
+  } else if (errorCode === 'ai-disabled') {
+    hint = i18n.t('ai_error_disabled');
+  } else if (errorCode === 'unauthorized') {
+    hint = i18n.t('ai_error_unauthorized');
+  } else if (errorCode === 'forbidden') {
+    hint = i18n.t('ai_error_forbidden');
+  } else if (errorCode === 'rate-limited') {
+    hint = i18n.t('ai_error_rate_limited');
+  } else if (errorCode === 'timeout') {
+    hint = i18n.t('ai_error_timeout');
+  } else if (errorCode === 'empty-response') {
+    hint = i18n.t('ai_error_empty');
+  }
 
-Requirements:
-- Return only the final remediation. No explanation, no analysis, no headings.
-- Prefer a corrected code snippet when the failing markup can be fixed directly.
-- If HTML alone is insufficient, return the smallest exact CSS or JS change needed.
-- Preserve unrelated attributes and behavior.
-- Do not repeat or preserve any attribute, style, ARIA usage, relationship, label source, or value that the finding identifies as failing.
-- If a metric fails, such as contrast ratio, target size, timeout, or name/role/value data, change the offending values so the result satisfies the requirement instead of repeating the failing values.
-- Prefer native semantic HTML over ARIA when possible.
-- If the problem is missing accessible name, label, alt text, role, state, relationship, focus handling, keyboard support, language, heading structure, table association, form association, media alternative, or document landmark, fix that exact root cause.
-- If the snippet is partial, return only the minimal changed snippet or minimal concrete steps.
-- Output must be valid, implementation-ready, and concise.`;
+  return `
+    <div class="ai-fix-error">
+      <strong>${escHtml(hint)}</strong>
+      ${message ? `<div>${escHtml(message)}</div>` : ''}
+      <button type="button" class="btn ai-open-settings-btn">${escHtml(i18n.t('btn_ai_settings'))}</button>
+    </div>
+  `;
 }
 
 function suggestAIFix(rule, node, containerEl) {
   const outputEl = containerEl.querySelector('.ai-fix-output');
   const btnEl = containerEl.querySelector('.ai-fix-btn');
 
-  // If already has content, toggle visibility
   if (outputEl.dataset.loaded === 'true') {
     outputEl.classList.toggle('hidden');
     return;
@@ -1281,17 +1491,8 @@ function suggestAIFix(rule, node, containerEl) {
   btnEl.textContent = i18n.t('ai_generating');
   outputEl.classList.remove('hidden');
   outputEl.textContent = i18n.t('ai_waiting');
-  _startAIFix(rule, node, containerEl, outputEl, btnEl);
-}
-
-function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
-  const prompt = buildFixPrompt(rule, node, domContext);
-  const systemPrompt = 'You are an expert axe-core accessibility remediation assistant. Produce only the final fix in markdown. Use structured finding data as the source of truth. Fix the root cause, not the symptom. Never repeat a value or attribute that the finding marks as failing. Prefer minimal valid code changes and native semantic HTML when possible.';
 
   const port = chrome.runtime.connect({ name: 'ai-fix' });
-
-  let logHtml = '';
-
   port.onMessage.addListener((msg) => {
     if (msg.type === 'downloading') {
       const pct = msg.total > 0 ? Math.round((msg.loaded / msg.total) * 100) : 0;
@@ -1300,29 +1501,37 @@ function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
         <div class="ai-progress-bar"><div class="ai-progress-fill" style="width:${pct}%"></div></div>
       </div>`;
       btnEl.textContent = i18n.t('ai_downloading');
-    } else if (msg.type === 'status') {
-      outputEl.innerHTML = logHtml + `<div class="ai-fix-status"><span class="ai-status-spinner"></span> ${escHtml(msg.message)}</div>`;
+      return;
+    }
+
+    if (msg.type === 'status') {
+      outputEl.innerHTML = `<div class="ai-fix-status"><span class="ai-status-spinner"></span> ${escHtml(msg.message)}</div>`;
       btnEl.textContent = i18n.t('ai_working');
-    } else if (msg.type === 'chunk') {
-      outputEl.innerHTML = logHtml + `<div class="ai-fix-preview">${formatAIResponse(msg.text)}</div>`;
+      return;
+    }
+
+    if (msg.type === 'chunk') {
+      outputEl.innerHTML = `<div class="ai-fix-preview">${formatAIResponse(msg.text)}</div>`;
       btnEl.textContent = i18n.t('ai_generating');
-    } else if (msg.type === 'result') {
-      const disclaimer = `<div class="ai-fix-disclaimer">${escHtml(i18n.t('ai_disclaimer'))}</div>`;
-      outputEl.innerHTML = logHtml + disclaimer + formatAIResponse(msg.text);
-    } else if (msg.type === 'done') {
+      return;
+    }
+
+    if (msg.type === 'result') {
+      const normalized = msg.normalized || A11yAICommon.parseAIResponse(msg.text || '');
+      outputEl.innerHTML = renderAIResult(normalized, msg.providerId);
       outputEl.dataset.loaded = 'true';
+      return;
+    }
+
+    if (msg.type === 'done') {
       btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
       try { port.disconnect(); } catch (_) {}
-    } else if (msg.type === 'error') {
-      if (msg.error === 'not-available') {
-        outputEl.innerHTML = `<div class="ai-fix-error">
-          <strong>${escHtml(i18n.t('ai_not_available'))}</strong><br>
-          <span>Enable <code>chrome://flags/#prompt-api-for-gemini-nano</code> and <code>chrome://flags/#optimization-guide-on-device-model</code>, then restart Chrome.</span>
-        </div>`;
-      } else {
-        outputEl.innerHTML = `<div class="ai-fix-error">${i18n.t('runtime_error', { message: escHtml(msg.error) })}</div>`;
-      }
+      return;
+    }
+
+    if (msg.type === 'error') {
+      outputEl.innerHTML = renderAIError(msg.errorCode, msg.error);
       btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
       try { port.disconnect(); } catch (_) {}
@@ -1331,35 +1540,13 @@ function _startAIFix(rule, node, containerEl, outputEl, btnEl, domContext) {
 
   port.onDisconnect.addListener(() => {
     if (chrome.runtime.lastError) {
-      outputEl.innerHTML = `<div class="ai-fix-error">${i18n.t('runtime_error', { message: escHtml(chrome.runtime.lastError.message) })}</div>`;
+      outputEl.innerHTML = renderAIError('unknown-error', chrome.runtime.lastError.message);
       btnEl.textContent = i18n.t('ai_suggest_fix');
       btnEl.disabled = false;
     }
   });
 
-  port.postMessage({ prompt, systemPrompt });
-}
-
-function formatAIResponse(text) {
-  // Minimal markdown → HTML: code blocks, inline code, bold, line breaks
-  let html = escHtml(text);
-  // Code blocks: ```lang\n...\n```
-  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) =>
-    `<pre class="ai-code-block"><button class="ai-copy-btn" title="${i18n.t('ai_copy_code')}">📋</button><code>${code.trim()}</code></pre>`
-  );
-  // Markdown links: [text](url) → <a href="url" target="_blank">text</a>
-  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>');
-  // Bold
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  // Line breaks (outside pre)
-  html = html.replace(/\n/g, '<br>');
-  // Fix <br> inside <pre>
-  html = html.replace(/<pre([^>]*)>([\s\S]*?)<\/pre>/g, (_, attrs, inner) =>
-    `<pre${attrs}>${inner.replace(/<br>/g, '\n')}</pre>`
-  );
-  return html;
+  port.postMessage({ finding: A11yAICommon.createFixRequest(rule, node) });
 }
 
 // ─────────────────────────────────────────────
@@ -1468,7 +1655,7 @@ function renderDetail() {
         ${isActive ? renderChecksSection(node) : ''}
         ${isActive ? `<div class="ai-fix-section" data-node-idx="${i}">
           <button class="ai-fix-btn">${i18n.t('ai_suggest_fix')}</button>
-          <div class="ai-fix-output hidden"></div>
+          <div class="ai-fix-output hidden" role="status" aria-live="polite"></div>
         </div>` : ''}
       </div>`;
   }).join('');
@@ -1554,6 +1741,13 @@ function renderDetail() {
     });
     // Copy code buttons (delegated since content is dynamic)
     section.querySelector('.ai-fix-output').addEventListener('click', (e) => {
+      const settingsBtn = e.target.closest('.ai-open-settings-btn');
+      if (settingsBtn) {
+        e.stopPropagation();
+        openAISettingsModal(settingsBtn);
+        return;
+      }
+
       const copyBtn = e.target.closest('.ai-copy-btn');
       if (!copyBtn) return;
       e.stopPropagation();
@@ -1630,6 +1824,7 @@ function exportJSON() {
 
 $('btn-scan').addEventListener('click', openScanModalFlow);
 $('btn-export').addEventListener('click', exportJSON);
+$('btn-ai-settings').addEventListener('click', (e) => openAISettingsModal(e.currentTarget));
 
 // Picker
 $('btn-picker').addEventListener('click', togglePicker);
@@ -1671,6 +1866,37 @@ $('btn-rules-clear-all').addEventListener('click', () => setAllVisibleRules(fals
 
 $('scan-modal').addEventListener('click', (e) => {
   if (e.target.id === 'scan-modal') closeScanModal();
+});
+
+$('btn-ai-settings-close').addEventListener('click', closeAISettingsModal);
+$('btn-ai-save').addEventListener('click', saveAISettings);
+$('btn-ai-test').addEventListener('click', testAIProviderConnection);
+$('btn-ai-clear-secret').addEventListener('click', clearAISecret);
+
+$('ai-provider-select').addEventListener('change', (e) => {
+  const previousProvider = state.aiSettings?.selectedProvider || 'builtin';
+  snapshotAISettingsDraft(previousProvider);
+  if (!state.aiSettings) return;
+  state.aiSettings.selectedProvider = e.target.value;
+  if (state.aiSettings.selectedProvider === 'builtin') {
+    state.aiSettings.fallbackMode = 'builtin_only';
+  }
+  renderAISettingsModal();
+});
+
+$('ai-fallback-mode').addEventListener('change', (e) => {
+  if (!state.aiSettings) return;
+  state.aiSettings.fallbackMode = e.target.value;
+  renderAISettingsModal();
+});
+
+$('ai-enabled').addEventListener('change', () => {
+  if (!state.aiSettings) return;
+  state.aiSettings.enabled = $('ai-enabled').checked;
+});
+
+$('ai-settings-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'ai-settings-modal') closeAISettingsModal();
 });
 
 // Tabs
@@ -1774,6 +2000,29 @@ document.addEventListener('mouseup', () => {
 // ─────────────────────────────────────────────
 document.addEventListener('keydown', e => {
   const scanModalEl = $('scan-modal');
+  const aiSettingsModalEl = $('ai-settings-modal');
+
+  if (aiSettingsModalEl && !aiSettingsModalEl.classList.contains('hidden')) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeAISettingsModal();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const focusable = getFocusableElements(aiSettingsModalEl);
+      if (!focusable.length) return;
+      const currentIndex = focusable.indexOf(document.activeElement);
+      if (e.shiftKey && (currentIndex <= 0 || document.activeElement === aiSettingsModalEl)) {
+        e.preventDefault();
+        focusable[focusable.length - 1].focus();
+      } else if (!e.shiftKey && currentIndex === focusable.length - 1) {
+        e.preventDefault();
+        focusable[0].focus();
+      }
+    }
+    return;
+  }
+
   if (scanModalEl && !scanModalEl.classList.contains('hidden') && e.key === 'Escape') {
     e.preventDefault();
     closeScanModal();
@@ -1830,6 +2079,11 @@ window.addEventListener('beforeunload', () => {
   }
 
   loadCachedResults();
+  try {
+    await loadAISettings(true);
+  } catch (_) {
+    // Keep the panel usable even if AI settings fail to load.
+  }
 
   // ── Filter chips ↔ hidden #filter-impact select sync ──
   const chips = document.querySelectorAll('#filter-chips .chip');
