@@ -1038,7 +1038,7 @@ function renderTopBar() {
   const { formattedResults } = state;
   if (!formattedResults) return;
 
-  const scoring  = computeScore(state.rawResults.violations);
+  const scoring  = computeScore(state.rawResults.violations, state.rawResults.passes);
   const score    = typeof scoring === 'number' ? scoring : scoring.score;
   const grade    = typeof scoring === 'object' ? scoring.grade : '';
   const breakdown = typeof scoring === 'object' ? scoring.breakdown : {};

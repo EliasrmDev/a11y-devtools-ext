@@ -71,7 +71,7 @@ async function runScan() {
 function renderResults(results) {
   const formatted = formatResults(results);
   lastFormatted = formatted;
-  const scoring   = computeScore(results.violations);
+  const scoring   = computeScore(results.violations, results.passes);
   const score     = typeof scoring === 'number' ? scoring : scoring.score;
   const grade     = typeof scoring === 'object' ? scoring.grade : '';
   const breakdown = typeof scoring === 'object' ? scoring.breakdown : {};
