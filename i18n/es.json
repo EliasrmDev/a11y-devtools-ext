@@ -186,5 +186,8 @@
   "ai_error_empty": "El proveedor devolvió una respuesta vacía. Intenta de nuevo o usa otro modelo.",
   "ai_test_connection": "Probar conexión",
   "ai_save_settings": "Guardar configuración",
-  "ai_clear_credentials": "Borrar credenciales"
+  "ai_clear_credentials": "Borrar credenciales",
+  "ai_regenerate": "↺ Regenerar",
+  "btn_clear_highlights": "Quitar resaltados",
+  "violations_label": "Violaciones"
 }

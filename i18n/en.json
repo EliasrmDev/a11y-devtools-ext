@@ -186,5 +186,8 @@
   "ai_error_empty": "The provider returned an empty response. Try again or use a different model.",
   "ai_test_connection": "Test Connection",
   "ai_save_settings": "Save Settings",
-  "ai_clear_credentials": "Clear Credentials"
+  "ai_clear_credentials": "Clear Credentials",
+  "ai_regenerate": "↺ Regenerate",
+  "btn_clear_highlights": "Clear Highlights",
+  "violations_label": "Violations"
 }

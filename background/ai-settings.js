@@ -67,6 +67,7 @@
         configured: providerState.configured,
         missing: providerState.missing || [],
         reason: providerState.reason,
+        ...(providerId === 'a11y_backend' ? { connectionId: provider.connectionId || '' } : {}),
       };
     });
 

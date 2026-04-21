@@ -277,7 +277,56 @@
     };
   }
 
-  async function runRemoteProvider(providerId, settings, secrets, prompts) {
+  async function runBackendProvider(settings, violationContext, lang) {
+    const cfg = Common.getProviderConfig(settings, 'a11y_backend');
+    if (!cfg.connectionId) {
+      throw new AIRequestError('setup-required', 'Select a backend connection in AI Settings.');
+    }
+    if (!cfg.model) {
+      throw new AIRequestError('setup-required', 'Enter a model name for the a11y DevTools API.');
+    }
+
+    let result;
+    try {
+      result = await global.A11yBackendClient.callAccessibilitySuggest(
+        cfg.connectionId,
+        cfg.model,
+        violationContext,
+        lang,
+      );
+    } catch (error) {
+      const status = error && error.status;
+      if (status === 401 || status === 403) {
+        throw new AIRequestError('unauthorized', 'Backend session expired. Sign in again in AI Settings.');
+      }
+      if (status === 429) {
+        throw new AIRequestError('rate-limited', 'Backend rate limit reached. Try again later.');
+      }
+      if (status === 400 || status === 422) {
+        throw new AIRequestError('validation-error', error && error.message ? error.message : 'Request validation failed.');
+      }
+      throw new AIRequestError(
+        'network-error',
+        error && error.message ? error.message : 'Backend request failed.',
+        { canFallback: true }
+      );
+    }
+
+    // Backend returns AccessibilitySuggestOutput — map directly, do NOT run through Common.parseAIResponse
+    const normalized = {
+      shortExplanation: result.shortExplanation || '',
+      userImpact: result.userImpact || '',
+      recommendedFix: result.recommendedFix || '',
+      codeExample: result.codeExample || '',
+      confidence: result.confidence || 'medium',
+      warnings: Array.isArray(result.warnings) ? result.warnings : [],
+      rawText: result.recommendedFix || '',
+    };
+
+    return { providerId: 'a11y_backend', rawText: result.recommendedFix || '', normalized };
+  }
+
+  async function runRemoteProvider(providerId, settings, secrets, prompts, violationContext, lang) {
     switch (providerId) {
       case 'openai':
         return runOpenAICompatibleProvider(
@@ -308,17 +357,24 @@
       }
       case 'anthropic':
         return runAnthropicProvider(settings, secrets, prompts);
+      case 'a11y_backend':
+        return runBackendProvider(settings, violationContext, lang);
       default:
         throw new AIRequestError('setup-required', 'Choose a supported AI provider.');
     }
   }
 
-  async function executeProvider(providerId, settings, secrets, prompts, port) {
-    postPortMessage(port, { type: 'status', message: `Using ${Common.getProviderLabel(providerId)}…` });
+  async function executeProvider(providerId, settings, secrets, prompts, port, violationContext, lang) {
+    const model = providerId !== 'builtin'
+      ? (Common.getProviderConfig(settings, providerId).model || '')
+      : '';
+    const label = Common.getProviderLabel(providerId);
+    const statusMsg = model ? `Using ${label} — ${model}…` : `Using ${label}…`;
+    postPortMessage(port, { type: 'status', message: statusMsg });
     if (providerId === 'builtin') {
       return runBuiltInProvider(prompts, settings, port);
     }
-    return runRemoteProvider(providerId, settings, secrets, prompts);
+    return runRemoteProvider(providerId, settings, secrets, prompts, violationContext, lang);
   }
 
   async function generateFix(payload, port) {
@@ -331,13 +387,15 @@
     }
 
     const plan = getExecutionPlan(settings);
-    const prompts = Common.buildPromptMessages(payload.finding || {});
+    const lang = payload.lang || 'en';
+    const prompts = Common.buildPromptMessages(payload.finding || {}, lang);
+    const violationContext = payload.finding || {};   // extract for backend provider
     let lastError = null;
 
     for (let index = 0; index < plan.length; index += 1) {
       const providerId = plan[index];
       try {
-        const result = await executeProvider(providerId, settings, secrets, prompts, port);
+        const result = await executeProvider(providerId, settings, secrets, prompts, port, violationContext, lang);
         return result;
       } catch (error) {
         lastError = error;
@@ -382,6 +440,26 @@
       checks: [],
     });
 
+    if (providerId === 'a11y_backend') {
+      const testViolation = {
+        ruleId: 'color-contrast',
+        help: 'Elements must have sufficient color contrast',
+        description: 'Background and foreground colors do not have a sufficient contrast ratio.',
+        impact: 'serious',
+        selector: '.demo-button',
+        htmlSnippet: '<button class="demo-button">Continue</button>',
+        failureSummary: 'Fix contrast ratio and keep the label readable.',
+        checks: [],
+      };
+      const result = await runBackendProvider(merged.settings, testViolation);
+      return {
+        ok: true,
+        providerId,
+        message: 'a11y DevTools API connection succeeded.',
+        sample: result.normalized.shortExplanation || 'OK',
+      };
+    }
+
     const result = await runRemoteProvider(providerId, settings, secrets, prompts);
     return {
       ok: true,
@@ -402,6 +480,71 @@
         label: Common.getProviderLabel(providerId),
       })),
     };
+  }
+
+  async function fetchModelsList(url, headers) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(url, { headers, signal: controller.signal });
+      const text = await response.text();
+      let json = null;
+      try { json = JSON.parse(text); } catch (_) { json = null; }
+      if (!response.ok) {
+        const errMsg = json && json.error
+          ? (json.error.message || JSON.stringify(json.error))
+          : `Request failed (${response.status})`;
+        throw new AIRequestError('provider-error', errMsg, { status: response.status });
+      }
+      return json;
+    } catch (error) {
+      if (error && error.name === 'AbortError') {
+        throw new AIRequestError('timeout', 'Models list request timed out.');
+      }
+      if (error instanceof AIRequestError) throw error;
+      throw new AIRequestError('network-error', error && error.message ? error.message : 'Network request failed.');
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function listProviderModels(providerId, candidateApiKey) {
+    const stored = await SettingsStore.readStoredConfig();
+    const secretKey = Common.getSecretKey(providerId);
+    const apiKey = (candidateApiKey && candidateApiKey.trim()) || (secretKey && stored.secrets[secretKey]) || '';
+
+    if (!apiKey) {
+      throw new AIRequestError('no-api-key', 'Enter an API key to browse available models.');
+    }
+
+    if (providerId === 'openai') {
+      const json = await fetchModelsList('https://api.openai.com/v1/models', {
+        Authorization: `Bearer ${apiKey}`,
+      });
+      const chatModels = (json.data || [])
+        .filter((m) => /^(gpt-|o\d|chatgpt)/i.test(m.id))
+        .sort((a, b) => a.id.localeCompare(b.id));
+      return chatModels.map((m) => ({ id: m.id, name: m.id }));
+    }
+
+    if (providerId === 'anthropic') {
+      const json = await fetchModelsList('https://api.anthropic.com/v1/models?limit=1000', {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      });
+      const models = (json.data || json.models || []).slice().sort((a, b) => a.id.localeCompare(b.id));
+      return models.map((m) => ({ id: m.id, name: m.display_name || m.id }));
+    }
+
+    if (providerId === 'openrouter') {
+      const json = await fetchModelsList('https://openrouter.ai/api/v1/models', {
+        Authorization: `Bearer ${apiKey}`,
+      });
+      const models = (json.data || []).slice().sort((a, b) => a.id.localeCompare(b.id));
+      return models.map((m) => ({ id: m.id, name: m.name || m.id }));
+    }
+
+    throw new AIRequestError('unsupported', `Model listing is not supported for provider: ${providerId}`);
   }
 
   async function handleMessage(msg) {
@@ -432,6 +575,39 @@
           message: result.message,
           sample: result.sample || '',
         };
+      }
+      case 'GET_BACKEND_AUTH_STATUS': {
+        const status = await global.A11yBackendClient.getAuthStatus();
+        return { ok: true, ...status };
+      }
+      case 'LOGIN_BACKEND': {
+        const auth = await global.A11yBackendClient.loginWithExternalToken(msg.token);
+        return { ok: true, user: auth.user };
+      }
+      case 'LOGOUT_BACKEND': {
+        await global.A11yBackendClient.logout();
+        return { ok: true };
+      }
+      case 'LIST_BACKEND_CONNECTIONS': {
+        const result = await global.A11yBackendClient.listConnections();
+        console.log('Connections: ', result);
+        return { ok: true, data: result.data || [] };
+      }
+      case 'CREATE_BACKEND_CONNECTION': {
+        const conn = await global.A11yBackendClient.createConnection(msg.payload);
+        return { ok: true, connection: conn };
+      }
+      case 'DELETE_BACKEND_CONNECTION': {
+        await global.A11yBackendClient.deleteConnection(msg.connectionId);
+        return { ok: true };
+      }
+      case 'LIST_BACKEND_MODELS': {
+        const result = await global.A11yBackendClient.listModels(msg.connectionId || '');
+        return { ok: true, data: result.data || [] };
+      }
+      case 'LIST_PROVIDER_MODELS': {
+        const models = await listProviderModels(msg.providerId, msg.apiKey || '');
+        return { ok: true, data: models };
       }
       default:
         return null;

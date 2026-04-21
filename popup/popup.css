@@ -103,7 +103,7 @@ header {
 .bd-row.serious  .dot { background: var(--c-serious);  }
 .bd-row.moderate .dot { background: var(--c-moderate); }
 .bd-row.minor    .dot { background: var(--c-minor);    }
-.bd-row .lbl { flex: 1; color: var(--c-sub); }
+.bd-row .lbl { flex: 1; min-width: 0; color: var(--c-sub); word-break: break-word; }
 .bd-row .cnt { font-weight: 600; }
 
 /* stats */
@@ -114,6 +114,7 @@ header {
 }
 .stat-box {
   flex: 1;
+  min-width: 0;
   background: var(--c-surface);
   border-radius: var(--radius);
   padding: 10px 6px;
@@ -134,7 +135,7 @@ header {
 .stat-num  { display: block; font-size: 20px; font-weight: 700; color: var(--c-critical); }
 .stat-num.pass { color: var(--c-pass); }
 .stat-num.warn { color: var(--c-moderate); }
-.stat-lbl  { font-size: 10px; color: var(--c-sub); text-transform: uppercase; letter-spacing: .5px; }
+.stat-lbl  { font-size: 10px; color: var(--c-sub); text-transform: uppercase; letter-spacing: .3px; word-break: break-word; line-height: 1.3; }
 
 .url-row, .time-row {
   font-size: 10px;

@@ -1,6 +1,7 @@
 importScripts(
   'shared/messaging.js',
   'shared/ai-common.js',
+  'background/backend-client.js',
   'background/ai-settings.js',
   'background/ai-service.js'
 );
@@ -44,6 +45,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case MSG.SAVE_AI_SETTINGS:
     case MSG.TEST_AI_PROVIDER:
     case MSG.CLEAR_AI_SECRET:
+    case MSG.LIST_PROVIDER_MODELS:
       A11yAIService.handleMessage(msg)
         .then(data => sendResponse(data))
         .catch(err => sendResponse({
@@ -51,6 +53,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           error: err?.message || String(err),
           details: err?.details,
         }));
+      return true;
+
+    case MSG.GET_BACKEND_AUTH_STATUS:
+    case MSG.LOGIN_BACKEND:
+    case MSG.LOGOUT_BACKEND:
+    case MSG.LIST_BACKEND_CONNECTIONS:
+    case MSG.CREATE_BACKEND_CONNECTION:
+    case MSG.DELETE_BACKEND_CONNECTION:
+    case MSG.LIST_BACKEND_MODELS:
+      A11yAIService.handleMessage(msg)
+        .then(data => sendResponse(data))
+        .catch(err => sendResponse({ ok: false, error: err?.message || String(err) }));
       return true;
 
     case MSG.SCAN_ELEMENT:
@@ -308,4 +322,17 @@ async function handleScanElement(tabId, selector, scanSelection = {}) {
 
 chrome.runtime.onConnect.addListener(port => {
   A11yAIService.handlePort(port);
+});
+
+// ── Auth callback from landing page (externally_connectable) ──
+// The auth-callback page on the landing site sends LOGIN_BACKEND here after
+// the user signs in with Clerk, passing a short-lived session token.
+
+chrome.runtime.onMessageExternal.addListener((msg, _sender, sendResponse) => {
+  if (msg && msg.type === 'LOGIN_BACKEND' && typeof msg.token === 'string') {
+    A11yAIService.handleMessage(msg)
+      .then(data  => sendResponse(data))
+      .catch(err  => sendResponse({ ok: false, error: err?.message || String(err) }));
+    return true; // keep the message channel open for the async response
+  }
 });

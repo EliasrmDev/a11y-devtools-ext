@@ -2,7 +2,8 @@
   'use strict';
 
   const SCHEMA_VERSION = 1;
-  const PROVIDERS = ['builtin', 'openai', 'anthropic', 'openrouter', 'custom'];
+  // const PROVIDERS = ['builtin', 'openai', 'anthropic', 'openrouter', 'custom'];
+  const PROVIDERS = ['builtin', 'openai', 'anthropic', 'openrouter', 'custom', 'a11y_backend'];
   const REMOTE_PROVIDERS = ['openai', 'anthropic', 'openrouter', 'custom'];
   const FALLBACK_MODES = ['builtin_only', 'remote_only', 'builtin_then_remote'];
   const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
@@ -19,6 +20,7 @@
       anthropic: { model: 'claude-3-5-haiku-latest' },
       openrouter: { model: 'openai/gpt-4.1-mini' },
       custom: { model: '', baseUrl: '' },
+      a11y_backend: { connectionId: '', model: '' },
     },
   };
 
@@ -72,7 +74,8 @@
   }
 
   function getSecretKey(providerId) {
-    return providerId ? `${providerId}ApiKey` : '';
+    if (!providerId || providerId === 'builtin' || providerId === 'a11y_backend') return '';
+    return `${providerId}ApiKey`;
   }
 
   function maskSecret(secret) {
@@ -102,6 +105,9 @@
       }
       if (providerId === 'custom') {
         merged.providers.custom.baseUrl = normalizeBaseUrl(source.baseUrl);
+      }
+      if (providerId === 'a11y_backend') {
+        merged.providers.a11y_backend.connectionId = trimString(source.connectionId, 200);
       }
     });
 
@@ -135,6 +141,7 @@
       case 'anthropic': return 'Anthropic';
       case 'openrouter': return 'OpenRouter';
       case 'custom': return 'Custom OpenAI-compatible';
+      case 'a11y_backend': return 'a11y DevTools API';
       default: return 'Unknown provider';
     }
   }
@@ -170,6 +177,16 @@
       }
     });
 
+    if (settings.selectedProvider === 'a11y_backend') {
+      const cfg = getProviderConfig(settings, 'a11y_backend');
+      if (!cfg.connectionId) {
+        errors.push({ field: 'a11y_backend.connectionId', message: 'Select a backend connection.' });
+      }
+      if (!cfg.model) {
+        errors.push({ field: 'a11y_backend.model', message: 'a11y DevTools API model is required.' });
+      }
+    }
+
     return errors;
   }
 
@@ -186,6 +203,25 @@
         model: '',
         baseUrl: '',
         reason: 'local',
+      };
+    }
+
+    if (providerId === 'a11y_backend') {
+      const connectionId = (provider && provider.connectionId) || '';
+      const model = (provider && provider.model) || '';
+      const configured = Boolean(connectionId && model);
+      return {
+        configured,
+        hasApiKey: false,
+        maskedApiKey: '',
+        model,
+        baseUrl: '',
+        connectionId,
+        missing: [
+          ...(!connectionId ? ['connectionId'] : []),
+          ...(!model ? ['model'] : []),
+        ],
+        reason: configured ? 'ready' : 'missing:connectionId,model',
       };
     }
 
@@ -256,7 +292,9 @@
     };
   }
 
-  function buildPromptMessages(request) {
+  const LANG_NAMES = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese' };
+
+  function buildPromptMessages(request, lang) {
     const payload = {
       ruleId: request.ruleId || 'unknown',
       help: request.help || '',
@@ -268,6 +306,11 @@
       checks: Array.isArray(request.checks) ? request.checks : [],
     };
 
+    const langName = (lang && LANG_NAMES[lang]) || 'English';
+    const langInstruction = langName !== 'English'
+      ? `Write all text fields (shortExplanation, userImpact, recommendedFix, warnings) in ${langName}. Keep codeExample in the original programming language without translation.`
+      : '';
+
     const systemPrompt = [
       'You are an accessibility remediation assistant for axe-core findings.',
       'Use only the provided finding payload.',
@@ -277,7 +320,8 @@
       '{"shortExplanation":"","userImpact":"","recommendedFix":"","codeExample":"","confidence":"low|medium|high","warnings":[]}',
       'warnings must be an array of short strings.',
       'If the snippet is insufficient, explain the limitation in warnings and still provide the safest concrete fix guidance.',
-    ].join(' ');
+      langInstruction,
+    ].filter(Boolean).join(' ');
 
     const userPrompt = [
       'Generate an accessibility fix suggestion for this finding payload.',

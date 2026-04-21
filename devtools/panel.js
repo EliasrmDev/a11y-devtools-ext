@@ -40,6 +40,10 @@ const state = {
   aiProviders: [],
   aiSettingsFocusReturn: null,
   aiSettingsLoaded: false,
+  backendAuthStatus: null,
+  backendConnections: [],
+  modelFavorites: {},
+  modelsBrowserData: { providerId: '', models: [] },
 };
 
 // ─────────────────────────────────────────────
@@ -186,6 +190,60 @@ function impactBadge(impact) {
 // ─────────────────────────────────────────────
 // Scan
 // ─────────────────────────────────────────────
+function runQuickScan() {
+  showLoading(true);
+  $('btn-quick-scan').disabled = true;
+  $('btn-scan').disabled = true;
+  $('btn-export').disabled = true;
+  setStatus(i18n.t('scanning_n_rules', { count: '…' }));
+
+  safeSendMessage({
+    type: MSG.SCAN_REQUEST,
+    tabId: tabId(),
+  }, (resp) => {
+    try {
+      showLoading(false);
+      $('btn-quick-scan').disabled = false;
+      $('btn-scan').disabled = false;
+
+      if (chrome.runtime.lastError) {
+        setStatus(i18n.t('runtime_error', { message: chrome.runtime.lastError.message }));
+        return;
+      }
+      if (!resp || resp.type === MSG.SCAN_ERROR) {
+        setStatus(i18n.t('scan_error', { message: resp?.error || 'unknown' }));
+        return;
+      }
+      if (!resp.results) {
+        setStatus(i18n.t('scan_no_results'), 'warning');
+        return;
+      }
+
+      state.previousResults = state.rawResults;
+      state.rawResults = resp.results;
+      state.formattedResults = formatResults(resp.results);
+      state.selectedRuleIdx = -1;
+      state.selectedNodeIdx = -1;
+
+      clearHighlights();
+
+      $('btn-export').disabled = false;
+      renderAll();
+      setStatus(i18n.t('scan_complete', { url: resp.results.url || '', time: new Date(resp.results.timestamp).toLocaleTimeString() }));
+      updateScanTargetBar('Full page');
+    } catch (e) {
+      showLoading(false);
+      $('btn-quick-scan').disabled = false;
+      $('btn-scan').disabled = false;
+      if (e?.message?.includes('Extension context invalidated')) {
+        setStatus(i18n.t('extension_reloaded'));
+      } else {
+        throw e;
+      }
+    }
+  });
+}
+
 function runScan(filterType, selectedValues) {
   const mode = filterType === 'tag' ? 'tag' : 'rule';
   const selected = Array.isArray(selectedValues) ? selectedValues : [];
@@ -979,12 +1037,270 @@ function getFocusableElements(container) {
   )).filter((element) => !element.disabled && !element.closest('.hidden'));
 }
 
+function parseAIStatusMessage(message) {
+  // Extract status code + human message from patterns like "... returned 429: {json}"
+  const match = message.match(/returned (\d{3}): (\{[\s\S]*)/);
+  if (match) {
+    const code = match[1];
+    try {
+      const parsed = JSON.parse(match[2]);
+      const innerMsg =
+        (parsed.error && typeof parsed.error === 'object' && (parsed.error.message || parsed.error.type))
+        || (typeof parsed.error === 'string' ? parsed.error : null)
+        || parsed.message
+        || null;
+      return { text: innerMsg || message, code };
+    } catch (_) {
+      return { text: message.replace(/: \{[\s\S]*/, '').trim(), code };
+    }
+  }
+  return { text: message, code: null };
+}
+
 function setAISettingsStatus(message, tone) {
   const statusEl = $('ai-settings-status');
   if (!statusEl) return;
-  statusEl.textContent = message || '';
   statusEl.classList.remove('is-error', 'is-success', 'is-info');
+  if (!message) {
+    statusEl.innerHTML = '';
+    return;
+  }
   if (tone) statusEl.classList.add(`is-${tone}`);
+  const { text, code } = parseAIStatusMessage(message);
+  statusEl.innerHTML = code
+    ? `<span class="ai-status-code-badge">HTTP ${escHtml(code)}</span><span>${escHtml(text)}</span>`
+    : escHtml(text);
+}
+
+async function fetchAndRenderModels(connectionId) {
+  const modelInput = $('ai-model-input');
+  const modelSelect = $('ai-model-select');
+  const loadingEl = $('ai-backend-models-loading');
+  if (!modelSelect) return;
+
+  if (!connectionId) {
+    modelSelect.innerHTML = '';
+    modelSelect.classList.add('hidden');
+    if (modelInput) modelInput.classList.remove('hidden');
+    return;
+  }
+
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  try {
+    const resp = await sendMessageAsync({ type: MSG.LIST_BACKEND_MODELS, connectionId });
+    const models = (resp && resp.data) || [];
+    const current = (modelInput && modelInput.value) || (modelSelect.value) || '';
+
+    modelSelect.innerHTML = [
+      '<option value="">— Select a model —</option>',
+      ...models.map((m) => {
+        const id = typeof m === 'string' ? m : (m.id || m.name || '');
+        const label = typeof m === 'string' ? m : (m.displayName || m.name || id);
+        return `<option value="${escHtml(id)}" ${id === current ? 'selected' : ''}>${escHtml(label)}</option>`;
+      }),
+    ].join('');
+
+    // Set saved model if list contains it, otherwise keep blank
+    if (current && models.some((m) => (typeof m === 'string' ? m : (m.id || m.name || '')) === current)) {
+      modelSelect.value = current;
+    }
+
+    modelSelect.classList.remove('hidden');
+    if (modelInput) modelInput.classList.add('hidden');
+  } catch (_) {
+    // On error fall back to free-text input
+    modelSelect.classList.add('hidden');
+    if (modelInput) modelInput.classList.remove('hidden');
+  } finally {
+    if (loadingEl) loadingEl.classList.add('hidden');
+  }
+}
+
+function renderBackendSection() {
+  const authStatus = state.backendAuthStatus;
+  const authEl = $('ai-backend-auth-status');
+  const loginBtn = $('ai-backend-login-btn');
+  const logoutBtn = $('ai-backend-logout-btn');
+  const connectionSelect = $('ai-backend-connection-select');
+
+  if (!authEl) return;
+
+  const sectionEl = $('ai-backend-section');
+  const authenticated = !!(authStatus && authStatus.authenticated);
+  if (sectionEl) sectionEl.classList.toggle('signed-in', authenticated);
+
+  if (!authenticated) {
+    authEl.textContent = 'Not signed in';
+    if (loginBtn) loginBtn.classList.remove('hidden');
+    if (logoutBtn) logoutBtn.classList.add('hidden');
+    if (connectionSelect) {
+      connectionSelect.innerHTML = '<option value="">Sign in to load connections</option>';
+      connectionSelect.disabled = true;
+    }
+    return;
+  }
+
+  authEl.textContent = `Signed in as ${authStatus.user?.email || authStatus.user?.displayName || 'user'}`;
+  if (loginBtn) loginBtn.classList.add('hidden');
+  if (logoutBtn) logoutBtn.classList.remove('hidden');
+
+  if (connectionSelect) {
+    connectionSelect.disabled = false;
+    const current = (state.aiSettings?.providers?.a11y_backend?.connectionId) || '';
+    connectionSelect.innerHTML = [
+      '<option value="">— Select a connection —</option>',
+      ...state.backendConnections.map((conn) =>
+        `<option value="${escHtml(conn.id)}" ${conn.id === current ? 'selected' : ''}>
+          ${escHtml(conn.displayName)} (${escHtml(conn.providerType)})
+        </option>`
+      ),
+    ].join('');
+
+    connectionSelect.onchange = () => {
+      const selectedId = connectionSelect.value;
+      const conn = state.backendConnections.find((c) => c.id === selectedId);
+      // Clear model when switching connections
+      const modelInput = $('ai-model-input');
+      if (modelInput) modelInput.value = '';
+      const modelSelect = $('ai-model-select');
+      if (modelSelect) modelSelect.innerHTML = '';
+      fetchAndRenderModels(selectedId);
+      if (conn && !selectedId) {
+        // no-op: model will be populated by fetchAndRenderModels
+      }
+    };
+
+    // If a connection is already saved, load its models immediately
+    if (current) {
+      fetchAndRenderModels(current);
+    } else {
+      // No connection selected — ensure text input is visible
+      const modelSelect = $('ai-model-select');
+      const modelInput = $('ai-model-input');
+      if (modelSelect) modelSelect.classList.add('hidden');
+      if (modelInput) modelInput.classList.remove('hidden');
+    }
+  }
+}
+
+async function loadBackendSection() {
+  try {
+    const resp = await sendMessageAsync({ type: MSG.GET_BACKEND_AUTH_STATUS });
+    state.backendAuthStatus = resp;
+    if (resp && resp.authenticated) {
+      const connResp = await sendMessageAsync({ type: MSG.LIST_BACKEND_CONNECTIONS });
+      state.backendConnections = (connResp && connResp.data) || [];
+    } else {
+      state.backendConnections = [];
+    }
+  } catch (_) {
+    state.backendAuthStatus = { authenticated: false, user: null };
+    state.backendConnections = [];
+  }
+}
+
+// ─────────────────────────────────────────────
+// Models Browser
+// ─────────────────────────────────────────────
+const MODELS_FAVORITES_KEY = 'ai_model_favorites_v1';
+
+function loadModelFavorites() {
+  try {
+    const raw = localStorage.getItem(MODELS_FAVORITES_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    state.modelFavorites = {};
+    Object.entries(parsed).forEach(([pid, ids]) => {
+      state.modelFavorites[pid] = new Set(Array.isArray(ids) ? ids : []);
+    });
+  } catch (_) {
+    state.modelFavorites = {};
+  }
+}
+
+function saveModelFavorites() {
+  try {
+    const toSave = {};
+    Object.entries(state.modelFavorites).forEach(([pid, set]) => {
+      toSave[pid] = Array.from(set);
+    });
+    localStorage.setItem(MODELS_FAVORITES_KEY, JSON.stringify(toSave));
+  } catch (_) {}
+}
+
+function toggleFavoriteModel(providerId, modelId) {
+  if (!state.modelFavorites[providerId]) state.modelFavorites[providerId] = new Set();
+  const favSet = state.modelFavorites[providerId];
+  if (favSet.has(modelId)) favSet.delete(modelId);
+  else favSet.add(modelId);
+  saveModelFavorites();
+}
+
+function renderModelsBrowser(filterText) {
+  const listEl = $('ai-models-list');
+  if (!listEl) return;
+  const { providerId, models } = state.modelsBrowserData;
+  const favSet = state.modelFavorites[providerId] || new Set();
+  const q = (filterText || '').toLowerCase().trim();
+  const filtered = q
+    ? models.filter((m) => m.id.toLowerCase().includes(q) || (m.name && m.name.toLowerCase().includes(q)))
+    : models;
+  const favorites = filtered.filter((m) => favSet.has(m.id));
+  const rest = filtered.filter((m) => !favSet.has(m.id));
+
+  function buildRow(m) {
+    const isFav = favSet.has(m.id);
+    const nameHtml = m.name && m.name !== m.id
+      ? `<span class="ai-model-row-name">${escHtml(m.name)}</span>` : '';
+    return `<div class="ai-model-row${isFav ? ' is-favorite' : ''}" role="listitem">
+      <span class="ai-model-row-id">${escHtml(m.id)}</span>
+      ${nameHtml}
+      <div class="ai-model-row-actions">
+        <button class="ai-model-star${isFav ? ' is-starred' : ''}" data-action="star" data-model-id="${escHtml(m.id)}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">${isFav ? '★' : '☆'}</button>
+        <button class="ai-model-copy" data-action="copy" data-model-id="${escHtml(m.id)}">⎘ Copy</button>
+        <button class="btn btn-sm ai-model-use-btn" data-action="select" data-model-id="${escHtml(m.id)}">Use</button>
+      </div>
+    </div>`;
+  }
+
+  const parts = [];
+  if (favorites.length) {
+    parts.push(`<div class="ai-models-section-label">★ Favorites</div>`);
+    favorites.forEach((m) => parts.push(buildRow(m)));
+  }
+  if (rest.length) {
+    if (favorites.length) parts.push(`<div class="ai-models-section-label">All models</div>`);
+    rest.forEach((m) => parts.push(buildRow(m)));
+  }
+  if (!parts.length) {
+    parts.push(`<div class="ai-models-empty">${q ? 'No models match your search.' : 'No models available.'}</div>`);
+  }
+  listEl.innerHTML = parts.join('');
+}
+
+async function openModelsBrowser() {
+  const providerId = $('ai-provider-select')?.value || '';
+  const apiKeyInput = $('ai-api-key-input');
+  const candidateKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+
+  const listEl = $('ai-models-list');
+  const searchEl = $('ai-models-search');
+  if (listEl) listEl.innerHTML = `<div class="ai-models-loading">Loading models…</div>`;
+  if (searchEl) searchEl.value = '';
+  $('ai-models-modal').classList.remove('hidden');
+
+  try {
+    const resp = await sendMessageAsync({ type: MSG.LIST_PROVIDER_MODELS, providerId, apiKey: candidateKey });
+    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed to load models.');
+    state.modelsBrowserData = { providerId, models: resp.data || [] };
+    renderModelsBrowser('');
+    if (searchEl) searchEl.focus();
+  } catch (err) {
+    if (listEl) listEl.innerHTML = `<div class="ai-models-empty">${escHtml(err.message || 'Failed to load models.')}</div>`;
+  }
+}
+
+function closeModelsBrowser() {
+  $('ai-models-modal').classList.add('hidden');
 }
 
 function renderAISettingsModal() {
@@ -1011,6 +1327,19 @@ function renderAISettingsModal() {
   $('ai-api-key-input').value = '';
 
   const isBuiltin = providerId === 'builtin';
+  const isBackend = providerId === 'a11y_backend';
+
+  // Reset model select when switching providers
+  if (!isBackend) {
+    const modelSelect = $('ai-model-select');
+    const modelInput = $('ai-model-input');
+    if (modelSelect) { modelSelect.innerHTML = ''; modelSelect.classList.add('hidden'); }
+    if (modelInput) modelInput.classList.remove('hidden');
+  }
+
+  const BROWSABLE_PROVIDERS = ['openai', 'anthropic', 'openrouter'];
+  const browseBtn = $('btn-browse-models');
+  if (browseBtn) browseBtn.classList.toggle('hidden', !BROWSABLE_PROVIDERS.includes(providerId));
   const fallbackSelect = $('ai-fallback-mode');
   const providerConfigEl = $('ai-provider-config');
   const apiKeyField = $('ai-api-key-field');
@@ -1021,8 +1350,13 @@ function renderAISettingsModal() {
   if (isBuiltin) fallbackSelect.value = 'builtin_only';
 
   providerConfigEl.classList.toggle('hidden', isBuiltin);
-  apiKeyField.classList.toggle('hidden', isBuiltin);
+  apiKeyField.classList.toggle('hidden', isBuiltin || isBackend);
   baseUrlField.classList.toggle('hidden', providerId !== 'custom');
+
+  // Show/hide backend section
+  const backendSection = $('ai-backend-section');
+  if (backendSection) backendSection.classList.toggle('hidden', !isBackend);
+  if (isBackend) renderBackendSection();
 
   if (!isBuiltin) {
     if (provider.hasApiKey) {
@@ -1053,8 +1387,18 @@ function snapshotAISettingsDraft(providerOverride) {
   state.aiSettings.enabled = $('ai-enabled').checked;
   state.aiSettings.fallbackMode = $('ai-fallback-mode').value;
   state.aiSettings.selectedProvider = $('ai-provider-select').value;
-  provider.model = $('ai-model-input').value.trim();
+
+  // Read model from select (backend) or text input (other providers)
+  const modelSelect = $('ai-model-select');
+  const modelInput = $('ai-model-input');
+  const useSelect = modelSelect && !modelSelect.classList.contains('hidden');
+  provider.model = useSelect ? (modelSelect.value || '').trim() : (modelInput ? modelInput.value.trim() : '');
+
   provider.baseUrl = $('ai-base-url-input').value.trim();
+  if (currentProviderId === 'a11y_backend') {
+    const connectionSelect = $('ai-backend-connection-select');
+    if (connectionSelect) provider.connectionId = connectionSelect.value;
+  }
   state.aiSettings.providers[currentProviderId] = provider;
 }
 
@@ -1077,6 +1421,7 @@ function buildAISettingsPayload() {
     payload.settings.providers[providerId] = {
       model: provider.model || '',
       baseUrl: provider.baseUrl || '',
+      ...(providerId === 'a11y_backend' ? { connectionId: provider.connectionId || '' } : {}),
     };
   });
 
@@ -1102,7 +1447,10 @@ async function loadAISettings(forceRefresh) {
   if (state.aiSettingsLoaded && !forceRefresh) return;
 
   setAISettingsStatus(i18n.t('ai_loading_settings'), 'info');
-  const resp = await sendMessageAsync({ type: MSG.GET_AI_SETTINGS });
+  const [resp] = await Promise.all([
+    sendMessageAsync({ type: MSG.GET_AI_SETTINGS }),
+    loadBackendSection(),
+  ]);
   applyAISettingsResponse(resp);
   setAISettingsStatus('', 'info');
 }
@@ -1138,6 +1486,7 @@ async function saveAISettings() {
     });
     applyAISettingsResponse(resp);
     setAISettingsStatus(i18n.t('ai_settings_saved'), 'success');
+    renderDetail();
   } catch (error) {
     setAISettingsStatus(error.message, 'error');
   }
@@ -1453,8 +1802,10 @@ function renderAIError(errorCode, message) {
 
   if (errorCode === 'not-available') {
     hint = i18n.t('ai_error_builtin_unavailable');
-  } else if (errorCode === 'setup-required' || errorCode === 'validation-error') {
+  } else if (errorCode === 'setup-required') {
     hint = i18n.t('ai_error_setup_required');
+  } else if (errorCode === 'validation-error') {
+    hint = 'The backend rejected the request. Check your connection settings and model name.';
   } else if (errorCode === 'ai-disabled') {
     hint = i18n.t('ai_error_disabled');
   } else if (errorCode === 'unauthorized') {
@@ -1469,28 +1820,41 @@ function renderAIError(errorCode, message) {
     hint = i18n.t('ai_error_empty');
   }
 
+  const detail = message && message !== hint ? `<div class="ai-fix-error-detail">${escHtml(message)}</div>` : '';
+
   return `
     <div class="ai-fix-error">
       <strong>${escHtml(hint)}</strong>
-      ${message ? `<div>${escHtml(message)}</div>` : ''}
+      ${detail}
       <button type="button" class="btn ai-open-settings-btn">${escHtml(i18n.t('btn_ai_settings'))}</button>
     </div>
   `;
 }
 
-function suggestAIFix(rule, node, containerEl) {
+function suggestAIFix(rule, node, containerEl, forceRegenerate) {
   const outputEl = containerEl.querySelector('.ai-fix-output');
   const btnEl = containerEl.querySelector('.ai-fix-btn');
 
-  if (outputEl.dataset.loaded === 'true') {
+  if (outputEl.dataset.loaded === 'true' && !forceRegenerate) {
     outputEl.classList.toggle('hidden');
     return;
   }
+
+  // Reset state for (re)generation
+  outputEl.dataset.loaded = '';
+  // Remove any existing regen button
+  const existingRegen = containerEl.querySelector('.ai-regen-btn');
+  if (existingRegen) existingRegen.remove();
 
   btnEl.disabled = true;
   btnEl.textContent = i18n.t('ai_generating');
   outputEl.classList.remove('hidden');
   outputEl.textContent = i18n.t('ai_waiting');
+
+  function onDone() {
+    btnEl.textContent = i18n.t('ai_suggest_fix');
+    btnEl.disabled = false;
+  }
 
   const port = chrome.runtime.connect({ name: 'ai-fix' });
   port.onMessage.addListener((msg) => {
@@ -1524,16 +1888,21 @@ function suggestAIFix(rule, node, containerEl) {
     }
 
     if (msg.type === 'done') {
-      btnEl.textContent = i18n.t('ai_suggest_fix');
-      btnEl.disabled = false;
+      onDone();
+      if (outputEl.dataset.loaded === 'true') {
+        const regenBtn = document.createElement('button');
+        regenBtn.type = 'button';
+        regenBtn.className = 'ai-regen-btn';
+        regenBtn.textContent = i18n.t('ai_regenerate') || '↺ Regenerate';
+        containerEl.insertBefore(regenBtn, outputEl);
+      }
       try { port.disconnect(); } catch (_) {}
       return;
     }
 
     if (msg.type === 'error') {
       outputEl.innerHTML = renderAIError(msg.errorCode, msg.error);
-      btnEl.textContent = i18n.t('ai_suggest_fix');
-      btnEl.disabled = false;
+      onDone();
       try { port.disconnect(); } catch (_) {}
     }
   });
@@ -1541,12 +1910,11 @@ function suggestAIFix(rule, node, containerEl) {
   port.onDisconnect.addListener(() => {
     if (chrome.runtime.lastError) {
       outputEl.innerHTML = renderAIError('unknown-error', chrome.runtime.lastError.message);
-      btnEl.textContent = i18n.t('ai_suggest_fix');
-      btnEl.disabled = false;
+      onDone();
     }
   });
 
-  port.postMessage({ finding: A11yAICommon.createFixRequest(rule, node) });
+  port.postMessage({ finding: A11yAICommon.createFixRequest(rule, node), lang: i18n.getLang() });
 }
 
 // ─────────────────────────────────────────────
@@ -1616,6 +1984,22 @@ function renderCheckData(data) {
   return `<div class="check-data">${rows}</div>`;
 }
 
+function buildAIProviderTag() {
+  if (!state.aiSettings) return '';
+  const settings = state.aiSettings;
+  const providerId = settings.selectedProvider || 'builtin';
+  const label = state.aiProviders.find((p) => p.id === providerId)?.label || providerId;
+  const provider = settings.providers?.[providerId] || {};
+  const model = provider.model || '';
+  const maskedKey = provider.maskedApiKey || '';
+
+  const parts = [escHtml(label)];
+  if (maskedKey) parts.push(escHtml(maskedKey));
+  if (model) parts.push(`<span class="ai-fix-tag-model">${escHtml(model)}</span>`);
+
+  return `<span class="ai-fix-provider-tag">${parts.join('<span class="ai-fix-tag-sep">·</span>')}</span>`;
+}
+
 // ─────────────────────────────────────────────
 // Render detail panel
 // ─────────────────────────────────────────────
@@ -1654,7 +2038,10 @@ function renderDetail() {
         ${node.failureSummary ? `<div class="nd-failure">${escHtml(node.failureSummary || '')}</div>` : ''}
         ${isActive ? renderChecksSection(node) : ''}
         ${isActive ? `<div class="ai-fix-section" data-node-idx="${i}">
-          <button class="ai-fix-btn">${i18n.t('ai_suggest_fix')}</button>
+          <div class="ai-fix-btn-row">
+            <button class="ai-fix-btn">${i18n.t('ai_suggest_fix')}</button>
+            ${buildAIProviderTag()}
+          </div>
           <div class="ai-fix-output hidden" role="status" aria-live="polite"></div>
         </div>` : ''}
       </div>`;
@@ -1679,8 +2066,10 @@ function renderDetail() {
         <button id="btn-prev-node" ${activeNodeIdx === 0 ? 'disabled' : ''}>${i18n.t('detail_btn_prev')}</button>
         <span class="nav-position">${activeNodeIdx+1} / ${rule.nodes.length}</span>
         <button id="btn-next-node" ${activeNodeIdx === rule.nodes.length-1 ? 'disabled' : ''}>${i18n.t('detail_btn_next')}</button>
-        <button id="btn-highlight-all" style="margin-left:6px">${i18n.t('detail_btn_highlight_all')}</button>
-        <button id="btn-clear-hl">${i18n.t('detail_btn_clear_hl')}</button>
+        <div class="nav-spacer">
+          <button id="btn-highlight-all">${i18n.t('detail_btn_highlight_all')}</button>
+          <button id="btn-clear-hl">${i18n.t('detail_btn_clear_hl')}</button>
+        </div>
       </div>
       ${nodesHtml}
     </div>` : `<div class="detail-section"><div class="detail-section-title">${i18n.t('detail_no_elements')}</div></div>`}
@@ -1739,15 +2128,20 @@ function renderDetail() {
       e.stopPropagation();
       suggestAIFix(rule, node, section);
     });
-    // Copy code buttons (delegated since content is dynamic)
-    section.querySelector('.ai-fix-output').addEventListener('click', (e) => {
+    section.addEventListener('click', (e) => {
+      const regenBtn = e.target.closest('.ai-regen-btn');
+      if (regenBtn) {
+        e.stopPropagation();
+        suggestAIFix(rule, node, section, true);
+        return;
+      }
+      // Copy code buttons (delegated since content is dynamic)
       const settingsBtn = e.target.closest('.ai-open-settings-btn');
       if (settingsBtn) {
         e.stopPropagation();
         openAISettingsModal(settingsBtn);
         return;
       }
-
       const copyBtn = e.target.closest('.ai-copy-btn');
       if (!copyBtn) return;
       e.stopPropagation();
@@ -1822,6 +2216,7 @@ function exportJSON() {
 // Event wiring
 // ─────────────────────────────────────────────
 
+$('btn-quick-scan').addEventListener('click', runQuickScan);
 $('btn-scan').addEventListener('click', openScanModalFlow);
 $('btn-export').addEventListener('click', exportJSON);
 $('btn-ai-settings').addEventListener('click', (e) => openAISettingsModal(e.currentTarget));
@@ -1873,6 +2268,44 @@ $('btn-ai-save').addEventListener('click', saveAISettings);
 $('btn-ai-test').addEventListener('click', testAIProviderConnection);
 $('btn-ai-clear-secret').addEventListener('click', clearAISecret);
 
+$('ai-backend-login-btn')?.addEventListener('click', async () => {
+  setAISettingsStatus('Opening sign-in…', 'info');
+  try {
+    // Open the auth-callback page on the landing site in a new tab.
+    // The page signs the user in with Clerk and then calls
+    // chrome.runtime.sendMessage(extensionId, { type: 'LOGIN_BACKEND', token })
+    // which is handled by background.js onMessageExternal.
+    await chrome.tabs.create({ url: 'https://api.a11y.eliasrm.dev/auth-callback' });
+    // Poll for auth status change (the tab will send the token asynchronously).
+    let attempts = 0;
+    const poll = setInterval(async () => {
+      attempts++;
+      const resp = await sendMessageAsync({ type: MSG.GET_BACKEND_AUTH_STATUS });
+      if (resp?.authenticated) {
+        clearInterval(poll);
+        state.backendAuthStatus = resp;
+        await loadBackendSection();
+        renderBackendSection();
+        setAISettingsStatus('Signed in successfully.', 'success');
+      } else if (attempts >= 60) {
+        // Give up after 60 × 2 s = 2 min
+        clearInterval(poll);
+        setAISettingsStatus('Sign-in timed out. Please try again.', 'error');
+      }
+    }, 2000);
+  } catch (err) {
+    setAISettingsStatus(err.message || 'Sign-in failed.', 'error');
+  }
+});
+
+$('ai-backend-logout-btn')?.addEventListener('click', async () => {
+  await sendMessageAsync({ type: MSG.LOGOUT_BACKEND });
+  state.backendAuthStatus = { authenticated: false, user: null };
+  state.backendConnections = [];
+  renderBackendSection();
+  setAISettingsStatus('Signed out.', 'info');
+});
+
 $('ai-provider-select').addEventListener('change', (e) => {
   const previousProvider = state.aiSettings?.selectedProvider || 'builtin';
   snapshotAISettingsDraft(previousProvider);
@@ -1897,6 +2330,33 @@ $('ai-enabled').addEventListener('change', () => {
 
 $('ai-settings-modal').addEventListener('click', (e) => {
   if (e.target.id === 'ai-settings-modal') closeAISettingsModal();
+});
+
+$('btn-browse-models').addEventListener('click', openModelsBrowser);
+$('btn-ai-models-close').addEventListener('click', closeModelsBrowser);
+$('ai-models-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'ai-models-modal') closeModelsBrowser();
+});
+$('ai-models-search').addEventListener('input', (e) => renderModelsBrowser(e.target.value));
+$('ai-models-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  const modelId = btn.dataset.modelId;
+  const { providerId } = state.modelsBrowserData;
+  if (action === 'star') {
+    toggleFavoriteModel(providerId, modelId);
+    renderModelsBrowser($('ai-models-search').value);
+  } else if (action === 'copy') {
+    navigator.clipboard.writeText(modelId).then(() => {
+      btn.textContent = '✓';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '⎘ Copy'; btn.classList.remove('copied'); }, 1500);
+    });
+  } else if (action === 'select') {
+    $('ai-model-input').value = modelId;
+    closeModelsBrowser();
+  }
 });
 
 // Tabs
@@ -2004,6 +2464,12 @@ document.addEventListener('keydown', e => {
 
   if (aiSettingsModalEl && !aiSettingsModalEl.classList.contains('hidden')) {
     if (e.key === 'Escape') {
+      const modelsModalEl = $('ai-models-modal');
+      if (modelsModalEl && !modelsModalEl.classList.contains('hidden')) {
+        e.preventDefault();
+        closeModelsBrowser();
+        return;
+      }
       e.preventDefault();
       closeAISettingsModal();
       return;
@@ -2078,6 +2544,7 @@ window.addEventListener('beforeunload', () => {
     });
   }
 
+  loadModelFavorites();
   loadCachedResults();
   try {
     await loadAISettings(true);
