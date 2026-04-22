@@ -5,7 +5,7 @@ Advanced Chrome extension for web accessibility testing, powered by [axe-core](h
 > **Disclaimer:** This is an independent open-source project. It is not affiliated with, endorsed by, or associated with Deque Systems or any of their products.
 
 ![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)
-![axe-core](https://img.shields.io/badge/axe--core-4.9-green)
+![axe-core](https://img.shields.io/badge/axe--core-4.11.3-green)
 ![License](https://img.shields.io/badge/license-MIT-gray)
 
 ---
@@ -63,14 +63,8 @@ a11y-ext/
 
 ```bash
 cd axe
-curl -L https://cdnjs.cloudflare.com/ajax/libs/axe-core/4.9.1/axe.min.js -o axe.min.js
-```
-
-Or via npm:
-
-```bash
-cd axe
-npm pack axe-core && tar xf axe-core-*.tgz && cp package/axe.min.js . && rm -rf package axe-core-*.tgz
+npm install axe-core --save-dev
+cp node_modules/axe-core/axe.min.js .
 ```
 
 ### 2. Generate icons

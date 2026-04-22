@@ -201,11 +201,7 @@
     </div>
 
     <div class="ai-settings-body">
-      <div class="ai-settings-note" data-i18n="ai_settings_notice_external">External providers receive a limited finding payload from the browser when you request a fix suggestion.</div>
-      <div class="ai-settings-note" data-i18n="ai_settings_notice_accounts">ChatGPT Plus and Claude Pro subscriptions do not include API access. You need a platform API key.</div>
-      <div class="ai-settings-note" data-i18n="ai_settings_notice_storage">API keys are stored locally in chrome.storage.local on this device. Anyone with access to this browser profile may be able to use them.</div>
-
-      <label class="ai-settings-toggle" for="ai-enabled">
+<label class="ai-settings-toggle" for="ai-enabled">
         <input id="ai-enabled" type="checkbox">
         <span>
           <span class="ai-settings-label" data-i18n="ai_settings_enable_label">Enable AI fix suggestions</span>
@@ -246,21 +242,8 @@
           <div class="ai-model-input-row">
             <input id="ai-model-input" class="search-input" type="text" autocomplete="off" spellcheck="false">
             <select id="ai-model-select" class="select hidden"></select>
-            <button id="btn-browse-models" class="btn btn-sm hidden" type="button">Browse</button>
           </div>
         </div>
-
-        <label id="ai-base-url-field" class="ai-settings-field hidden" for="ai-base-url-input">
-          <span class="ai-settings-label" data-i18n="ai_base_url_label">Base URL</span>
-          <input id="ai-base-url-input" class="search-input" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://example.com/v1">
-          <span class="ai-settings-help" data-i18n="ai_base_url_help">Use the provider base URL or a full chat completions endpoint.</span>
-        </label>
-
-        <label id="ai-api-key-field" class="ai-settings-field" for="ai-api-key-input">
-          <span class="ai-settings-label" data-i18n="ai_api_key_label">API key</span>
-          <input id="ai-api-key-input" class="search-input" type="password" autocomplete="new-password" spellcheck="false">
-          <span id="ai-api-key-help" class="ai-settings-help"></span>
-        </label>
 
         <!-- Backend provider section — shown only when a11y_backend is selected -->
         <div id="ai-backend-section" class="hidden">
@@ -288,7 +271,6 @@
     </div>
 
     <div class="scan-modal-footer">
-      <button id="btn-ai-clear-secret" class="btn" type="button" data-i18n="ai_clear_credentials">Clear Credentials</button>
       <button id="btn-ai-test" class="btn" type="button" data-i18n="ai_test_connection">Test Connection</button>
       <button id="btn-ai-save" class="btn btn-primary" type="button" data-i18n="ai_save_settings">Save Settings</button>
     </div>
@@ -337,21 +319,6 @@
     <div class="scan-modal-footer">
       <button id="btn-scan-cancel" class="btn" type="button" data-i18n="btn_cancel">Cancel</button>
       <button id="btn-scan-run-selected" class="btn btn-primary" type="button" data-i18n="btn_run_scan">Run Scan</button>
-    </div>
-  </div>
-</div>
-
-<div id="ai-models-modal" class="scan-modal hidden" role="dialog" aria-modal="true" aria-labelledby="ai-models-modal-title">
-  <div class="scan-modal-panel ai-models-panel">
-    <div class="scan-modal-header">
-      <h2 id="ai-models-modal-title">Browse Models</h2>
-      <div class="btn-group">
-        <button id="btn-ai-models-close" class="btn" type="button" aria-label="Close">✕</button>
-      </div>
-    </div>
-    <div class="ai-models-body">
-      <input id="ai-models-search" type="search" class="search-input" placeholder="Search models…" autocomplete="off">
-      <div id="ai-models-list" class="ai-models-list" role="list"></div>
     </div>
   </div>
 </div>

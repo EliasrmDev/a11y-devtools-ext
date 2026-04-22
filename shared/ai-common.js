@@ -2,9 +2,7 @@
   'use strict';
 
   const SCHEMA_VERSION = 1;
-  // const PROVIDERS = ['builtin', 'openai', 'anthropic', 'openrouter', 'custom'];
-  const PROVIDERS = ['builtin', 'openai', 'anthropic', 'openrouter', 'custom', 'a11y_backend'];
-  const REMOTE_PROVIDERS = ['openai', 'anthropic', 'openrouter', 'custom'];
+  const PROVIDERS = ['builtin', 'a11y_backend'];
   const FALLBACK_MODES = ['builtin_only', 'remote_only', 'builtin_then_remote'];
   const CONFIDENCE_LEVELS = ['low', 'medium', 'high'];
 
@@ -16,20 +14,11 @@
     timeoutMs: 20000,
     providers: {
       builtin: {},
-      openai: { model: 'gpt-4.1-mini' },
-      anthropic: { model: 'claude-3-5-haiku-latest' },
-      openrouter: { model: 'openai/gpt-4.1-mini' },
-      custom: { model: '', baseUrl: '' },
       a11y_backend: { connectionId: '', model: '' },
     },
   };
 
-  const DEFAULT_SECRETS = {
-    openaiApiKey: '',
-    anthropicApiKey: '',
-    openrouterApiKey: '',
-    customApiKey: '',
-  };
+  const DEFAULT_SECRETS = {};
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value));
@@ -103,9 +92,6 @@
       if (providerId !== 'builtin') {
         merged.providers[providerId].model = trimString(source.model, 120);
       }
-      if (providerId === 'custom') {
-        merged.providers.custom.baseUrl = normalizeBaseUrl(source.baseUrl);
-      }
       if (providerId === 'a11y_backend') {
         merged.providers.a11y_backend.connectionId = trimString(source.connectionId, 200);
       }
@@ -130,17 +116,9 @@
     return provider && typeof provider === 'object' ? provider : {};
   }
 
-  function isRemoteProvider(providerId) {
-    return REMOTE_PROVIDERS.includes(providerId);
-  }
-
   function getProviderLabel(providerId) {
     switch (providerId) {
       case 'builtin': return 'Chrome Built-in AI';
-      case 'openai': return 'OpenAI';
-      case 'anthropic': return 'Anthropic';
-      case 'openrouter': return 'OpenRouter';
-      case 'custom': return 'Custom OpenAI-compatible';
       case 'a11y_backend': return 'a11y DevTools API';
       default: return 'Unknown provider';
     }
@@ -148,34 +126,6 @@
 
   function validateSettings(settings, secrets) {
     const errors = [];
-
-    if (settings.fallbackMode !== 'builtin_only' && settings.selectedProvider === 'builtin') {
-      errors.push({ field: 'selectedProvider', message: 'Choose a remote provider for remote fallback modes.' });
-    }
-
-    const requiredRemoteProvider = settings.fallbackMode === 'builtin_only'
-      ? ''
-      : settings.selectedProvider;
-
-    REMOTE_PROVIDERS.forEach((providerId) => {
-      const provider = getProviderConfig(settings, providerId);
-      const secretKey = getSecretKey(providerId);
-      const hasKey = Boolean(secrets[secretKey]);
-
-      if (requiredRemoteProvider !== providerId) return;
-
-      if (!provider.model) {
-        errors.push({ field: `${providerId}.model`, message: `${getProviderLabel(providerId)} model is required.` });
-      }
-
-      if (!hasKey) {
-        errors.push({ field: `${providerId}.apiKey`, message: `${getProviderLabel(providerId)} API key is required.` });
-      }
-
-      if (providerId === 'custom' && !provider.baseUrl) {
-        errors.push({ field: 'custom.baseUrl', message: 'Custom OpenAI-compatible base URL is required.' });
-      }
-    });
 
     if (settings.selectedProvider === 'a11y_backend') {
       const cfg = getProviderConfig(settings, 'a11y_backend');
@@ -225,19 +175,14 @@
       };
     }
 
-    const missing = [];
-    if (!provider.model) missing.push('model');
-    if (!hasApiKey) missing.push('apiKey');
-    if (providerId === 'custom' && !provider.baseUrl) missing.push('baseUrl');
-
     return {
-      configured: missing.length === 0,
-      hasApiKey,
-      maskedApiKey: hasApiKey ? maskSecret(secrets[secretKey]) : '',
-      model: provider.model || '',
-      baseUrl: provider.baseUrl || '',
-      missing,
-      reason: missing.length ? `missing:${missing.join(',')}` : 'ready',
+      configured: false,
+      hasApiKey: false,
+      maskedApiKey: '',
+      model: '',
+      baseUrl: '',
+      missing: ['unknown'],
+      reason: 'unknown-provider',
     };
   }
 
@@ -450,17 +395,9 @@
     return output;
   }
 
-  function normalizeChatCompletionsBaseUrl(baseUrl) {
-    const value = normalizeBaseUrl(baseUrl);
-    if (!value) return '';
-    if (/\/chat\/completions$/i.test(value)) return value;
-    return value.replace(/\/$/, '') + '/chat/completions';
-  }
-
   global.A11yAICommon = {
     SCHEMA_VERSION,
     PROVIDERS,
-    REMOTE_PROVIDERS,
     FALLBACK_MODES,
     DEFAULT_SETTINGS,
     DEFAULT_SECRETS,
@@ -470,13 +407,11 @@
     getProviderConfigState,
     getProviderLabel,
     getSecretKey,
-    isRemoteProvider,
     maskSecret,
     mergeSettings,
     mergeSecrets,
     normalizeAIResult,
     normalizeBaseUrl,
-    normalizeChatCompletionsBaseUrl,
     parseAIResponse,
     redactSecrets,
     trimMultiline,

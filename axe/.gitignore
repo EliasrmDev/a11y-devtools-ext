@@ -1,0 +1,8 @@
+# axe-core (must be downloaded manually — see axe/GET_AXE.md)
+axe/axe.min.js
+
+# Node (if used for tooling)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

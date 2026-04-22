@@ -122,36 +122,6 @@
     }
   }
 
-  function buildOpenAIChatPayload(model, prompts) {
-    return {
-      model,
-      messages: [
-        { role: 'system', content: prompts.systemPrompt },
-        { role: 'user', content: prompts.userPrompt },
-      ],
-      temperature: 0.2,
-    };
-  }
-
-  function extractOpenAIText(json) {
-    const content = json && json.choices && json.choices[0] && json.choices[0].message
-      ? json.choices[0].message.content
-      : '';
-    if (Array.isArray(content)) {
-      return content.map((item) => item && item.text ? item.text : '').join('\n').trim();
-    }
-    return String(content || '').trim();
-  }
-
-  function extractAnthropicText(json) {
-    if (!json || !Array.isArray(json.content)) return '';
-    return json.content
-      .filter((item) => item && item.type === 'text' && item.text)
-      .map((item) => item.text)
-      .join('\n')
-      .trim();
-  }
-
   async function runBuiltInProvider(prompts, settings, port) {
     if (!global.LanguageModel) {
       throw new AIRequestError('not-available', 'Chrome Built-in AI is not available.', { canFallback: true });
@@ -204,79 +174,6 @@
     }
   }
 
-  async function runOpenAICompatibleProvider(providerId, settings, secrets, prompts, endpoint, extraHeaders) {
-    const provider = Common.getProviderConfig(settings, providerId);
-    const secretKey = Common.getSecretKey(providerId);
-    const apiKey = secrets[secretKey];
-
-    if (!provider.model) {
-      throw new AIRequestError('setup-required', `${Common.getProviderLabel(providerId)} model is required.`);
-    }
-    if (!apiKey) {
-      throw new AIRequestError('setup-required', `${Common.getProviderLabel(providerId)} API key is required.`);
-    }
-
-    const result = await fetchJsonWithTimeout(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-        ...(extraHeaders || {}),
-      },
-      body: JSON.stringify(buildOpenAIChatPayload(provider.model, prompts)),
-    }, settings.timeoutMs, secrets);
-
-    const text = extractOpenAIText(result.json);
-    if (!text) {
-      throw new AIRequestError('empty-response', `${Common.getProviderLabel(providerId)} returned an empty response.`);
-    }
-
-    return {
-      providerId,
-      rawText: text,
-      normalized: Common.parseAIResponse(text),
-    };
-  }
-
-  async function runAnthropicProvider(settings, secrets, prompts) {
-    const provider = Common.getProviderConfig(settings, 'anthropic');
-    const apiKey = secrets.anthropicApiKey;
-
-    if (!provider.model) {
-      throw new AIRequestError('setup-required', 'Anthropic model is required.');
-    }
-    if (!apiKey) {
-      throw new AIRequestError('setup-required', 'Anthropic API key is required.');
-    }
-
-    const result = await fetchJsonWithTimeout('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: provider.model,
-        system: prompts.systemPrompt,
-        max_tokens: 900,
-        temperature: 0.2,
-        messages: [{ role: 'user', content: prompts.userPrompt }],
-      }),
-    }, settings.timeoutMs, secrets);
-
-    const text = extractAnthropicText(result.json);
-    if (!text) {
-      throw new AIRequestError('empty-response', 'Anthropic returned an empty response.');
-    }
-
-    return {
-      providerId: 'anthropic',
-      rawText: text,
-      normalized: Common.parseAIResponse(text),
-    };
-  }
-
   async function runBackendProvider(settings, violationContext, lang) {
     const cfg = Common.getProviderConfig(settings, 'a11y_backend');
     if (!cfg.connectionId) {
@@ -327,41 +224,10 @@
   }
 
   async function runRemoteProvider(providerId, settings, secrets, prompts, violationContext, lang) {
-    switch (providerId) {
-      case 'openai':
-        return runOpenAICompatibleProvider(
-          'openai',
-          settings,
-          secrets,
-          prompts,
-          'https://api.openai.com/v1/chat/completions'
-        );
-      case 'openrouter':
-        return runOpenAICompatibleProvider(
-          'openrouter',
-          settings,
-          secrets,
-          prompts,
-          'https://openrouter.ai/api/v1/chat/completions',
-          {
-            'HTTP-Referer': 'https://github.com/EliasrmDev/a11y-devtools-ext',
-            'X-Title': 'a11y DevTools',
-          }
-        );
-      case 'custom': {
-        const customEndpoint = Common.normalizeChatCompletionsBaseUrl(Common.getProviderConfig(settings, 'custom').baseUrl);
-        if (!customEndpoint) {
-          throw new AIRequestError('setup-required', 'Custom OpenAI-compatible base URL is required.');
-        }
-        return runOpenAICompatibleProvider('custom', settings, secrets, prompts, customEndpoint);
-      }
-      case 'anthropic':
-        return runAnthropicProvider(settings, secrets, prompts);
-      case 'a11y_backend':
-        return runBackendProvider(settings, violationContext, lang);
-      default:
-        throw new AIRequestError('setup-required', 'Choose a supported AI provider.');
+    if (providerId === 'a11y_backend') {
+      return runBackendProvider(settings, violationContext, lang);
     }
+    throw new AIRequestError('setup-required', 'Choose a supported AI provider.');
   }
 
   async function executeProvider(providerId, settings, secrets, prompts, port, violationContext, lang) {
@@ -482,71 +348,6 @@
     };
   }
 
-  async function fetchModelsList(url, headers) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    try {
-      const response = await fetch(url, { headers, signal: controller.signal });
-      const text = await response.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch (_) { json = null; }
-      if (!response.ok) {
-        const errMsg = json && json.error
-          ? (json.error.message || JSON.stringify(json.error))
-          : `Request failed (${response.status})`;
-        throw new AIRequestError('provider-error', errMsg, { status: response.status });
-      }
-      return json;
-    } catch (error) {
-      if (error && error.name === 'AbortError') {
-        throw new AIRequestError('timeout', 'Models list request timed out.');
-      }
-      if (error instanceof AIRequestError) throw error;
-      throw new AIRequestError('network-error', error && error.message ? error.message : 'Network request failed.');
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  async function listProviderModels(providerId, candidateApiKey) {
-    const stored = await SettingsStore.readStoredConfig();
-    const secretKey = Common.getSecretKey(providerId);
-    const apiKey = (candidateApiKey && candidateApiKey.trim()) || (secretKey && stored.secrets[secretKey]) || '';
-
-    if (!apiKey) {
-      throw new AIRequestError('no-api-key', 'Enter an API key to browse available models.');
-    }
-
-    if (providerId === 'openai') {
-      const json = await fetchModelsList('https://api.openai.com/v1/models', {
-        Authorization: `Bearer ${apiKey}`,
-      });
-      const chatModels = (json.data || [])
-        .filter((m) => /^(gpt-|o\d|chatgpt)/i.test(m.id))
-        .sort((a, b) => a.id.localeCompare(b.id));
-      return chatModels.map((m) => ({ id: m.id, name: m.id }));
-    }
-
-    if (providerId === 'anthropic') {
-      const json = await fetchModelsList('https://api.anthropic.com/v1/models?limit=1000', {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      });
-      const models = (json.data || json.models || []).slice().sort((a, b) => a.id.localeCompare(b.id));
-      return models.map((m) => ({ id: m.id, name: m.display_name || m.id }));
-    }
-
-    if (providerId === 'openrouter') {
-      const json = await fetchModelsList('https://openrouter.ai/api/v1/models', {
-        Authorization: `Bearer ${apiKey}`,
-      });
-      const models = (json.data || []).slice().sort((a, b) => a.id.localeCompare(b.id));
-      return models.map((m) => ({ id: m.id, name: m.name || m.id }));
-    }
-
-    throw new AIRequestError('unsupported', `Model listing is not supported for provider: ${providerId}`);
-  }
-
   async function handleMessage(msg) {
     switch (msg.type) {
       case 'GET_AI_SETTINGS':
@@ -559,14 +360,8 @@
           ok: true,
         };
       }
-      case 'CLEAR_AI_SECRET': {
-        const updated = await SettingsStore.clearSecret(msg.providerId);
-        return {
-          settings: updated,
-          builtIn: await getBuiltInAvailability(),
-          ok: true,
-        };
-      }
+      case 'CLEAR_AI_SECRET':
+        return { ok: true };
       case 'TEST_AI_PROVIDER': {
         const result = await testProvider(msg.payload || {});
         return {
@@ -605,10 +400,8 @@
         const result = await global.A11yBackendClient.listModels(msg.connectionId || '');
         return { ok: true, data: result.data || [] };
       }
-      case 'LIST_PROVIDER_MODELS': {
-        const models = await listProviderModels(msg.providerId, msg.apiKey || '');
-        return { ok: true, data: models };
-      }
+      case 'LIST_PROVIDER_MODELS':
+        return { ok: false, error: 'Model listing is not supported.' };
       default:
         return null;
     }

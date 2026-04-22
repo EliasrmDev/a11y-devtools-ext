@@ -42,8 +42,6 @@ const state = {
   aiSettingsLoaded: false,
   backendAuthStatus: null,
   backendConnections: [],
-  modelFavorites: {},
-  modelsBrowserData: { providerId: '', models: [] },
 };
 
 // ─────────────────────────────────────────────
@@ -1202,107 +1200,6 @@ async function loadBackendSection() {
 // ─────────────────────────────────────────────
 // Models Browser
 // ─────────────────────────────────────────────
-const MODELS_FAVORITES_KEY = 'ai_model_favorites_v1';
-
-function loadModelFavorites() {
-  try {
-    const raw = localStorage.getItem(MODELS_FAVORITES_KEY);
-    const parsed = raw ? JSON.parse(raw) : {};
-    state.modelFavorites = {};
-    Object.entries(parsed).forEach(([pid, ids]) => {
-      state.modelFavorites[pid] = new Set(Array.isArray(ids) ? ids : []);
-    });
-  } catch (_) {
-    state.modelFavorites = {};
-  }
-}
-
-function saveModelFavorites() {
-  try {
-    const toSave = {};
-    Object.entries(state.modelFavorites).forEach(([pid, set]) => {
-      toSave[pid] = Array.from(set);
-    });
-    localStorage.setItem(MODELS_FAVORITES_KEY, JSON.stringify(toSave));
-  } catch (_) {}
-}
-
-function toggleFavoriteModel(providerId, modelId) {
-  if (!state.modelFavorites[providerId]) state.modelFavorites[providerId] = new Set();
-  const favSet = state.modelFavorites[providerId];
-  if (favSet.has(modelId)) favSet.delete(modelId);
-  else favSet.add(modelId);
-  saveModelFavorites();
-}
-
-function renderModelsBrowser(filterText) {
-  const listEl = $('ai-models-list');
-  if (!listEl) return;
-  const { providerId, models } = state.modelsBrowserData;
-  const favSet = state.modelFavorites[providerId] || new Set();
-  const q = (filterText || '').toLowerCase().trim();
-  const filtered = q
-    ? models.filter((m) => m.id.toLowerCase().includes(q) || (m.name && m.name.toLowerCase().includes(q)))
-    : models;
-  const favorites = filtered.filter((m) => favSet.has(m.id));
-  const rest = filtered.filter((m) => !favSet.has(m.id));
-
-  function buildRow(m) {
-    const isFav = favSet.has(m.id);
-    const nameHtml = m.name && m.name !== m.id
-      ? `<span class="ai-model-row-name">${escHtml(m.name)}</span>` : '';
-    return `<div class="ai-model-row${isFav ? ' is-favorite' : ''}" role="listitem">
-      <span class="ai-model-row-id">${escHtml(m.id)}</span>
-      ${nameHtml}
-      <div class="ai-model-row-actions">
-        <button class="ai-model-star${isFav ? ' is-starred' : ''}" data-action="star" data-model-id="${escHtml(m.id)}" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">${isFav ? '★' : '☆'}</button>
-        <button class="ai-model-copy" data-action="copy" data-model-id="${escHtml(m.id)}">⎘ Copy</button>
-        <button class="btn btn-sm ai-model-use-btn" data-action="select" data-model-id="${escHtml(m.id)}">Use</button>
-      </div>
-    </div>`;
-  }
-
-  const parts = [];
-  if (favorites.length) {
-    parts.push(`<div class="ai-models-section-label">★ Favorites</div>`);
-    favorites.forEach((m) => parts.push(buildRow(m)));
-  }
-  if (rest.length) {
-    if (favorites.length) parts.push(`<div class="ai-models-section-label">All models</div>`);
-    rest.forEach((m) => parts.push(buildRow(m)));
-  }
-  if (!parts.length) {
-    parts.push(`<div class="ai-models-empty">${q ? 'No models match your search.' : 'No models available.'}</div>`);
-  }
-  listEl.innerHTML = parts.join('');
-}
-
-async function openModelsBrowser() {
-  const providerId = $('ai-provider-select')?.value || '';
-  const apiKeyInput = $('ai-api-key-input');
-  const candidateKey = apiKeyInput ? apiKeyInput.value.trim() : '';
-
-  const listEl = $('ai-models-list');
-  const searchEl = $('ai-models-search');
-  if (listEl) listEl.innerHTML = `<div class="ai-models-loading">Loading models…</div>`;
-  if (searchEl) searchEl.value = '';
-  $('ai-models-modal').classList.remove('hidden');
-
-  try {
-    const resp = await sendMessageAsync({ type: MSG.LIST_PROVIDER_MODELS, providerId, apiKey: candidateKey });
-    if (!resp || !resp.ok) throw new Error((resp && resp.error) || 'Failed to load models.');
-    state.modelsBrowserData = { providerId, models: resp.data || [] };
-    renderModelsBrowser('');
-    if (searchEl) searchEl.focus();
-  } catch (err) {
-    if (listEl) listEl.innerHTML = `<div class="ai-models-empty">${escHtml(err.message || 'Failed to load models.')}</div>`;
-  }
-}
-
-function closeModelsBrowser() {
-  $('ai-models-modal').classList.add('hidden');
-}
-
 function renderAISettingsModal() {
   if (!state.aiSettings) return;
 
@@ -1323,8 +1220,6 @@ function renderAISettingsModal() {
   $('ai-provider-select').value = providerId;
   $('ai-fallback-mode').value = settings.fallbackMode || 'builtin_only';
   $('ai-model-input').value = provider.model || '';
-  $('ai-base-url-input').value = provider.baseUrl || '';
-  $('ai-api-key-input').value = '';
 
   const isBuiltin = providerId === 'builtin';
   const isBackend = providerId === 'a11y_backend';
@@ -1337,36 +1232,21 @@ function renderAISettingsModal() {
     if (modelInput) modelInput.classList.remove('hidden');
   }
 
-  const BROWSABLE_PROVIDERS = ['openai', 'anthropic', 'openrouter'];
+  const BROWSABLE_PROVIDERS = [];
   const browseBtn = $('btn-browse-models');
-  if (browseBtn) browseBtn.classList.toggle('hidden', !BROWSABLE_PROVIDERS.includes(providerId));
+  if (browseBtn) browseBtn.classList.add('hidden');
   const fallbackSelect = $('ai-fallback-mode');
   const providerConfigEl = $('ai-provider-config');
-  const apiKeyField = $('ai-api-key-field');
-  const baseUrlField = $('ai-base-url-field');
-  const apiKeyHelp = $('ai-api-key-help');
 
   fallbackSelect.disabled = isBuiltin;
   if (isBuiltin) fallbackSelect.value = 'builtin_only';
 
   providerConfigEl.classList.toggle('hidden', isBuiltin);
-  apiKeyField.classList.toggle('hidden', isBuiltin || isBackend);
-  baseUrlField.classList.toggle('hidden', providerId !== 'custom');
 
   // Show/hide backend section
   const backendSection = $('ai-backend-section');
   if (backendSection) backendSection.classList.toggle('hidden', !isBackend);
   if (isBackend) renderBackendSection();
-
-  if (!isBuiltin) {
-    if (provider.hasApiKey) {
-      apiKeyHelp.textContent = i18n.t('ai_api_key_stored', { key: provider.maskedApiKey || '••••••••' });
-    } else {
-      apiKeyHelp.textContent = i18n.t('ai_api_key_missing');
-    }
-  } else {
-    apiKeyHelp.textContent = '';
-  }
 
   $('ai-built-in-status').textContent = builtIn.label || i18n.t('ai_status_unknown');
 
@@ -1394,7 +1274,6 @@ function snapshotAISettingsDraft(providerOverride) {
   const useSelect = modelSelect && !modelSelect.classList.contains('hidden');
   provider.model = useSelect ? (modelSelect.value || '').trim() : (modelInput ? modelInput.value.trim() : '');
 
-  provider.baseUrl = $('ai-base-url-input').value.trim();
   if (currentProviderId === 'a11y_backend') {
     const connectionSelect = $('ai-backend-connection-select');
     if (connectionSelect) provider.connectionId = connectionSelect.value;
@@ -1420,16 +1299,9 @@ function buildAISettingsPayload() {
   Object.entries(state.aiSettings.providers || {}).forEach(([providerId, provider]) => {
     payload.settings.providers[providerId] = {
       model: provider.model || '',
-      baseUrl: provider.baseUrl || '',
       ...(providerId === 'a11y_backend' ? { connectionId: provider.connectionId || '' } : {}),
     };
   });
-
-  const providerId = state.aiSettings.selectedProvider;
-  const apiKey = $('ai-api-key-input').value.trim();
-  if (apiKey && providerId !== 'builtin') {
-    payload.secrets[`${providerId}ApiKey`] = apiKey;
-  }
 
   return payload;
 }
@@ -1501,26 +1373,6 @@ async function testAIProviderConnection() {
     });
     const message = resp && resp.message ? resp.message : i18n.t('ai_test_success_generic');
     setAISettingsStatus(message, 'success');
-  } catch (error) {
-    setAISettingsStatus(error.message, 'error');
-  }
-}
-
-async function clearAISecret() {
-  const providerId = $('ai-provider-select').value;
-  if (!providerId || providerId === 'builtin') {
-    setAISettingsStatus(i18n.t('ai_clear_no_secret'), 'info');
-    return;
-  }
-
-  setAISettingsStatus(i18n.t('ai_clearing_credentials'), 'info');
-  try {
-    const resp = await sendMessageAsync({
-      type: MSG.CLEAR_AI_SECRET,
-      providerId,
-    });
-    applyAISettingsResponse(resp);
-    setAISettingsStatus(i18n.t('ai_credentials_cleared'), 'success');
   } catch (error) {
     setAISettingsStatus(error.message, 'error');
   }
@@ -2266,7 +2118,6 @@ $('scan-modal').addEventListener('click', (e) => {
 $('btn-ai-settings-close').addEventListener('click', closeAISettingsModal);
 $('btn-ai-save').addEventListener('click', saveAISettings);
 $('btn-ai-test').addEventListener('click', testAIProviderConnection);
-$('btn-ai-clear-secret').addEventListener('click', clearAISecret);
 
 $('ai-backend-login-btn')?.addEventListener('click', async () => {
   setAISettingsStatus('Opening sign-in…', 'info');
@@ -2330,33 +2181,6 @@ $('ai-enabled').addEventListener('change', () => {
 
 $('ai-settings-modal').addEventListener('click', (e) => {
   if (e.target.id === 'ai-settings-modal') closeAISettingsModal();
-});
-
-$('btn-browse-models').addEventListener('click', openModelsBrowser);
-$('btn-ai-models-close').addEventListener('click', closeModelsBrowser);
-$('ai-models-modal').addEventListener('click', (e) => {
-  if (e.target.id === 'ai-models-modal') closeModelsBrowser();
-});
-$('ai-models-search').addEventListener('input', (e) => renderModelsBrowser(e.target.value));
-$('ai-models-list').addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-action]');
-  if (!btn) return;
-  const action = btn.dataset.action;
-  const modelId = btn.dataset.modelId;
-  const { providerId } = state.modelsBrowserData;
-  if (action === 'star') {
-    toggleFavoriteModel(providerId, modelId);
-    renderModelsBrowser($('ai-models-search').value);
-  } else if (action === 'copy') {
-    navigator.clipboard.writeText(modelId).then(() => {
-      btn.textContent = '✓';
-      btn.classList.add('copied');
-      setTimeout(() => { btn.textContent = '⎘ Copy'; btn.classList.remove('copied'); }, 1500);
-    });
-  } else if (action === 'select') {
-    $('ai-model-input').value = modelId;
-    closeModelsBrowser();
-  }
 });
 
 // Tabs
@@ -2464,12 +2288,6 @@ document.addEventListener('keydown', e => {
 
   if (aiSettingsModalEl && !aiSettingsModalEl.classList.contains('hidden')) {
     if (e.key === 'Escape') {
-      const modelsModalEl = $('ai-models-modal');
-      if (modelsModalEl && !modelsModalEl.classList.contains('hidden')) {
-        e.preventDefault();
-        closeModelsBrowser();
-        return;
-      }
       e.preventDefault();
       closeAISettingsModal();
       return;
@@ -2544,7 +2362,6 @@ window.addEventListener('beforeunload', () => {
     });
   }
 
-  loadModelFavorites();
   loadCachedResults();
   try {
     await loadAISettings(true);
