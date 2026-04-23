@@ -15,11 +15,16 @@ Advanced Chrome extension for web accessibility testing, powered by [axe-core](h
 - **Accessibility scan** — runs axe-core against WCAG 2.1/2.2 AA + best-practice rules
 - **Score 0–100** with letter grade (A–F) and per-impact breakdown
 - **DOM highlighting** — colored overlays with tooltips directly on the page
-- **DevTools panel** — split-view UI with issue list, detail panel, and keyboard navigation
+- **DevTools panel** — three-column UI with issue list, detail panel, and keyboard navigation
 - **Popup** — quick score summary with animated ring
 - **Filters** — by impact level (critical / serious / moderate / minor) and free-text search
 - **Navigate elements** — Prev/Next buttons and ↑↓←→ keyboard shortcuts
+- **Element picker** — click any element on the page to scope a scan to it
+- **Custom scan** — select specific axe rules or tags to run
+- **Preset scans** — WCAG A, AA, compliance + best-practices presets
+- **AI fix suggestions** — Chrome Built-in AI or a11y DevTools API backend
 - **Export JSON** — download full axe results
+- **Internationalization** — UI available in English, Spanish, French, German, and Portuguese
 - **Result cache** — last scan is kept in memory per tab
 
 ---
@@ -28,17 +33,25 @@ Advanced Chrome extension for web accessibility testing, powered by [axe-core](h
 
 ```ini
 a11y-ext/
-├── .gitignore
 ├── manifest.json
-├── background.js            Service worker — runs scans, routes messages, caches results
+├── background.js            Service worker — routes messages, runs scans, caches results
+├── background/
+│   ├── ai-service.js        AI provider orchestration and port-based streaming
+│   ├── ai-settings.js       Settings/secrets storage (chrome.storage.local)
+│   └── backend-client.js    a11y DevTools API auth and connection management
 ├── shared/
-│   └── messaging.js         MSG.* constants shared across all contexts
+│   ├── messaging.js         MSG.* constants shared across all contexts
+│   └── ai-common.js         Prompt builder, response parser, secret redaction
 ├── content/
 │   ├── content.js           DOM overlay engine (highlights, tooltips, scroll)
-│   └── picker.js            Element picker logic
+│   ├── picker.js            Element picker with Shadow DOM isolation
+│   └── auth-bridge.js       Relays external auth token to background
 ├── core/
-│   ├── scoring.js           Score calculation + grade
+│   ├── scoring.js           Weighted pass-rate score + grade
 │   └── formatter.js         Normalizes & sorts axe results
+├── i18n/
+│   ├── i18n.js              i18n utility (load, translate, apply to DOM)
+│   └── {en,es,fr,de,pt}.json  Translation files
 ├── popup/
 │   ├── popup.html
 │   ├── popup.css
@@ -111,14 +124,16 @@ Click the extension icon in the toolbar. Hit **Run Scan** to get a quick score s
 
 ## Scoring
 
-| Impact | Penalty per element |
-|--------|---------------------|
-| Critical | −10 |
-| Serious | −7 |
-| Moderate | −4 |
-| Minor | −2 |
+Lighthouse-style weighted pass rate: `score = (Σ weight_passing) / (Σ weight_total) × 100`
 
-Score starts at 100 and is capped at 0.
+Each rule contributes one weight unit regardless of how many elements matched.
+
+| Impact | Weight |
+|--------|--------|
+| Critical | 10 |
+| Serious | 7 |
+| Moderate | 4 |
+| Minor | 1 |
 
 | Grade | Score |
 |-------|-------|
